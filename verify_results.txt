@@ -1,0 +1,94 @@
+whisper model: base   videos scored: 80
+skipped (empty stored transcript): 2 ['_1wB0eT6YSo', '_pfKx4NUc-E']
+
+video_id      cat   lang    dur_s  ref_tok  whisper_tok  overlap  difflib
+-0-V_hd_nFs   REAL  en       70.5       43           45    0.721    0.682
+0Uc3vwNlDdY   REAL  en      104.4      233          251    0.974    0.938
+0zC0K0YZEzg   REAL  en       90.1       10           16    0.000    0.000
+1015075362957602816REAL  en       35.1      132          136    0.962    0.948
+1022121794151411712REAL  en       23.0       60           60    0.967    0.967
+1037991279924310016REAL  en       41.2      101          100    0.950    0.945
+1087515186871889923REAL  en       90.7      222          187    0.797    0.856
+1100778867457966083REAL  en       46.0       81           80    0.951    0.957
+1182443451176144897REAL  en       95.5      294          298    0.980    0.973
+1219425312691425285REAL  en      105.0      254          240    0.866    0.891
+1232066805574836229REAL  en       42.8      147          162    0.850    0.803
+1269947282222284803REAL  en       17.6       53           53    0.981    0.981
+1288893375094161415REAL  en       46.7       54           55    0.944    0.936
+_-bZM17jvvs   REAL  en       71.2      177          175    0.944    0.949
+_0oux8o9MJo   REAL  en       86.8      223          227    0.964    0.951
+_6kQkSBP84U   REAL  en      122.7      314          317    0.946    0.935
+_HC36OnL-6c   REAL  en      124.7      269          142    0.491    0.633
+_V_W9ko2CTA   REAL  en       69.6      131          130    0.878    0.858
+_k-xTCnDCek   REAL  en       96.7      231          235    0.957    0.944
+_qP0d-xiYTo   REAL  en      108.4      287          296    0.937    0.913
+0NqD96FRgOo   CD    en      150.3      484          493    0.957    0.936
+1016638160867155968CD    en       18.9       55           54    0.927    0.936
+1062139768794963968CD    en       87.4      257          254    0.957    0.963
+1275571903034544133CD    en       63.9      129          129    0.992    0.992
+1300229308447850503CD    en       24.0       63           63    0.984    0.984
+1361363392066318337CD    en       59.6       28           33    0.893    0.787
+1451236341124116496CD    en       81.6      212          211    0.943    0.936
+1483419357380231171CD    en       75.9      202          209    0.901    0.871
+1484074820732076033CD    en       80.8      181          184    0.934    0.915
+1484817138963652610CD    en       57.7      145          150    0.952    0.922
+1485321432997539847CD    en       68.2       21            7    0.095    0.143
+2Go7J9p4oeo   CD    en       35.4       64           61    0.922    0.944
+3cu7SWr_IhE   CD    en       91.5      131          106    0.664    0.717
+4GkT7yFak3M   CD    en      126.5      301          296    0.927    0.935
+51C0zWArdQ0   CD    en      125.5      127          154    0.732    0.569
+8qY404OqPdQ   CD    en       28.8       72           72    0.958    0.958
+AB8X-HRF7qQ   CD    en      120.8      292          293    0.829    0.814
+C05vAdxXXEI   CD    en      110.0      237          233    0.920    0.928
+a54_4FmZnS0   CD    en      133.3      430          429    0.984    0.985
+b5Gb_dK77ls   CD    en       65.1       74           50    0.541    0.629
+0EaToc3dkIQ   CE    en      112.4      144          294    0.799    0.470
+1QtWNYrfFJA   CE    en       92.9      102          230    0.647    0.283
+1rSvxZQ6ksw   CE    en       98.2      102          247    0.706    0.361
+2fr2jjA1w88   CE    en      119.5      164          289    0.738    0.437
+2rmuMkzeqU0   CE    en      101.2      108          236    0.759    0.407
+_9Bdsey4XFQ   CE    en      140.0      113          234    0.655    0.334
+__HPCmizGfc   CE    en      139.5      149          314    0.651    0.307
+_krgcofiM6M   CE    en      130.2       81          128    0.556    0.354
+_qwLHlVjRyw   CE    en      140.1        5           30    0.000    0.000
+_w4GJiC4q_c   CE    en      119.2      121          345    0.694    0.292
+07oqlilGKG0   SV    en      105.1      159          328    0.478    0.119
+0Cqk3X8xmXo   SV    en       73.7       61           71    0.574    0.515
+11mRIouqi5c   SV    en      122.0      208          276    0.510    0.380
+195iNnGuXaM   SV    en      136.1      179          254    0.475    0.152
+1acMpdKKX90   SV    en      111.8      182          245    0.462    0.183
+1yP_jb5P2zg   SV    en       33.6       77           75    0.299    0.132
+2AKezIUdMSc   SV    en       47.6      118          113    0.449    0.364
+_CKjyn92vgs   SV    en       86.3      231          293    0.450    0.240
+_jq0YWIMM4M   SV    en      134.9      194          433    0.397    0.061
+_mJs-T-aH14   SV    nn       61.5      134           23    0.007    0.013
+1488122389506387972CA    en       54.4      143          144    0.923    0.920
+1495971609856946182CA    en      102.0       14           40    0.143    0.074
+1499343355842641923CA    en      135.2        5           87    0.000    0.000
+1509887518707171337CA    en      210.3      155          389    0.955    0.526
+1522596044940345346CA    en      141.1       94          171    0.979    0.672
+1545422465093971968CA    en       76.6        9           12    0.556    0.476
+1555607365063417863CA    en       39.9       26           23    0.538    0.531
+1556566179963076609CA    en       80.2       24           38    1.000    0.774
+1595213036742070272CA    en       56.0      161          158    0.963    0.972
+1628182790096183299CA    zh      140.2       15            0    0.000    0.000
+BTdd3TkdwWI   CA    en       64.5      169          169    0.976    0.976
+J3GLT4gRLMY   CA    en       98.5      382          390    0.982    0.972
+Lo1vWot3v28   CA    en       90.2      266          267    0.985    0.983
+NQJNMC4O6VU   CA    en       42.7      125          124    0.960    0.964
+PM1uK1Od4nI   CA    en       39.6      104          104    0.971    0.962
+UkYs3kDHtvA   CA    en      114.4      331          337    0.931    0.919
+clsJQMRPerw   CA    en      113.2      275          279    0.938    0.928
+eURDyLSqmtw   CA    en      125.5      373          365    0.938    0.949
+rF8a4B8AQMA   CA    en      124.2      398          397    0.970    0.969
+sy0SAjcz1I8   CA    en       78.7      162          164    0.963    0.957
+
+category     n  overlap_mean  overlap_med  overlap_chance  difflib_mean  difflib_med  difflib_chance  flag
+REAL        20         0.853        0.945           0.212         0.853        0.937           0.051  
+CD          20         0.851        0.927           0.235         0.843        0.931           0.053  
+CE          10         0.620        0.675           0.212         0.325        0.344           0.047  LOW (difflib)
+SV          10         0.410        0.456           0.224         0.216        0.168           0.052  LOW (token_overlap, difflib)
+CA          20         0.784        0.957           0.222         0.726        0.924           0.046  
+
+flag rule: category mean more than 0.15 below the mean of the other categories
+chance: stored transcript scored against whisper output of every other downloaded video
