@@ -13,13 +13,18 @@ without — plus a transcript-presence-only baseline, so the leakage from the
 class-correlated transcript missingness is visible. Results -> `results.json`.
 
     python train.py
+
+Visual split (frozen REAL+CD+CA subset, 1,510 records): text and full
+modalities at d_k 32 and 128, best-val-F1 and epoch-30 test results, majority
+baseline beside every accuracy. Results -> `results_visual.json`.
+
+    python train.py --subset visual
 """
 
 import argparse
 import copy
 import json
 import os
-import random
 
 import numpy as np
 import torch
@@ -28,8 +33,10 @@ from sklearn.metrics import (accuracy_score, f1_score, precision_score,
                              recall_score)
 from torch.utils.data import DataLoader
 
-from dataset import (FAKE_CATEGORIES, FMNVDDataset, SEED, load_features,
-                     load_records, make_splits)
+from dataset import (FAKE_CATEGORIES, FMNVDDataset, SEED, VISUAL_CATEGORIES,
+                     load_features, load_records, load_visual_features,
+                     make_splits, make_visual_splits)
+from determinism import make_generator, seed_worker, set_seed
 from model import FMNVD
 from utils import get_device
 
@@ -38,18 +45,12 @@ BATCH_SIZE = 128
 EPOCHS = 30
 CHECKPOINT_DIR = "checkpoints"
 RESULTS_PATH = "results.json"
+VISUAL_RESULTS_PATH = "results_visual.json"
+VISUAL_FAKE_CATEGORIES = [c for c in VISUAL_CATEGORIES if c != "REAL"]
 
 # paper Table 4, "w/o Frames" row
 TARGETS = {"accuracy": 72.50, "f1": 71.94, "precision": 72.11, "recall": 73.56}
 METRIC_KEYS = ("accuracy", "f1", "precision", "recall")
-
-
-def set_seed(seed):
-    random.seed(seed)
-    np.random.seed(seed)
-    torch.manual_seed(seed)
-    if torch.backends.mps.is_available():
-        torch.mps.manual_seed(seed)
 
 
 def metrics(y_true, y_pred):
@@ -83,9 +84,10 @@ def run_epoch(model, loader, device, criterion, optimizer=None):
         speech_mask = batch["speech_mask"].to(device)
         flag = batch["has_transcript"].to(device)
         labels = batch["label"].to(device)
+        video = {k: batch[k].to(device) for k in ("clip", "motion") if k in batch}
 
         with torch.set_grad_enabled(train):
-            logits = model(title, speech, title_mask, speech_mask, flag)
+            logits = model(title, speech, title_mask, speech_mask, flag, **video)
             loss = criterion(logits, labels)
             if train:
                 optimizer.zero_grad()
@@ -100,11 +102,11 @@ def run_epoch(model, loader, device, criterion, optimizer=None):
     return total_loss / n, np.concatenate(y_true), np.concatenate(y_pred)
 
 
-def per_category_metrics(y_true, y_pred, records):
+def per_category_metrics(y_true, y_pred, records, fake_categories=FAKE_CATEGORIES):
     """Per-category = the real samples plus only that category's fakes."""
     categories = np.array([r["category"] for r in records])
     out = {}
-    for cat in FAKE_CATEGORIES:
+    for cat in fake_categories:
         sel = (categories == "REAL") | (categories == cat)
         m = metrics(y_true[sel], y_pred[sel])
         m["n"] = int(sel.sum())
@@ -113,15 +115,37 @@ def per_category_metrics(y_true, y_pred, records):
     return out
 
 
-def evaluate(model, loader, device, criterion, records):
+def evaluate(model, loader, device, criterion, records, fake_categories=FAKE_CATEGORIES):
     loss, y_true, y_pred = run_epoch(model, loader, device, criterion)
     overall = metrics(y_true, y_pred)
     overall["n"] = int(len(y_true))
     return {
         "loss": loss,
         "overall": overall,
-        "per_category": per_category_metrics(y_true, y_pred, records),
+        "per_category": per_category_metrics(y_true, y_pred, records, fake_categories),
     }
+
+
+def evaluate_visual(model, loader, device, criterion, records):
+    loss, y_true, y_pred = run_epoch(model, loader, device, criterion)
+    return {"loss": loss, **visual_metrics(y_true, y_pred, records)}
+
+
+def visual_metrics(y_true, y_pred, records):
+    categories = np.array([r["category"] for r in records])
+    overall = metrics(y_true, y_pred)
+    overall.update(n=int(len(y_true)), n_fake=int(y_true.sum()),
+                   majority_acc=100 * float((y_true == 0).mean()))
+    per_category = per_category_metrics(y_true, y_pred, records, VISUAL_FAKE_CATEGORIES)
+    for cat, m in per_category.items():
+        sel = (categories == "REAL") | (categories == cat)
+        m["majority_acc"] = 100 * float((y_true[sel] == 0).mean())
+    real = categories == "REAL"
+    per_category["REAL"] = {
+        "accuracy": 100 * accuracy_score(y_true[real], y_pred[real]),
+        "n": int(real.sum()), "n_fake": 0, "majority_acc": 100.0,
+    }
+    return {"overall": overall, "per_category": per_category}
 
 
 def transcript_only_baseline(records):
@@ -140,22 +164,25 @@ def transcript_only_baseline(records):
     }
 
 
-def run_experiment(use_flag, splits, features, device, epochs, seed):
-    tag = "with_flag" if use_flag else "without_flag"
-    label = "WITH has_transcript" if use_flag else "WITHOUT has_transcript"
+def run_experiment(use_flag, splits, features, device, epochs, seed,
+                   modalities="text", d_k=None, visual=None, tag=None, label=None,
+                   save_checkpoints=True):
+    tag = tag or ("with_flag" if use_flag else "without_flag")
+    label = label or ("WITH has_transcript" if use_flag else "WITHOUT has_transcript")
     print(f"\n{'=' * 74}\nRUN: {label}\n{'=' * 74}")
 
     set_seed(seed)
     loaders = {}
     for name in ("train", "val", "test"):
-        ds = FMNVDDataset(splits[name], features=features)
-        g = torch.Generator().manual_seed(seed)
+        ds = FMNVDDataset(splits[name], features=features,
+                          visual=visual if modalities == "full" else None)
         loaders[name] = DataLoader(
             ds, batch_size=BATCH_SIZE, shuffle=(name == "train"),
-            generator=g if name == "train" else None, drop_last=False,
+            generator=make_generator(seed), worker_init_fn=seed_worker,
+            drop_last=False,
         )
 
-    model = FMNVD(use_has_transcript=use_flag).to(device)
+    model = FMNVD(use_has_transcript=use_flag, modalities=modalities, d_k=d_k).to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=LR)
     criterion = nn.CrossEntropyLoss()
 
@@ -185,16 +212,27 @@ def run_experiment(use_flag, splits, features, device, epochs, seed):
               f"{va['f1']:>14.2f}{'  <--' if is_best else '':>6}")
 
     print(f"\nbest checkpoint: epoch {best_epoch} (val macro F1 {best_f1:.2f})")
-    model.load_state_dict(best_state)
     os.makedirs(CHECKPOINT_DIR, exist_ok=True)
-    torch.save(best_state, os.path.join(CHECKPOINT_DIR, f"best_{tag}.pt"))
-
-    test = evaluate(model, loaders["test"], device, criterion, splits["test"])
-    return {
+    result = {
         "tag": tag, "label": label, "use_has_transcript": use_flag,
         "params": n_params, "best_epoch": best_epoch, "best_val_f1_macro": best_f1,
-        "history": history, "test": test,
+        "history": history,
     }
+    if visual is not None:
+        result.update(modalities=modalities, d_k=model.d_k)
+        if save_checkpoints:
+            torch.save(model.state_dict(), os.path.join(CHECKPOINT_DIR, f"last_{tag}.pt"))
+        result["test_last"] = evaluate_visual(model, loaders["test"], device, criterion, splits["test"])
+
+    model.load_state_dict(best_state)
+    if save_checkpoints:
+        torch.save(best_state, os.path.join(CHECKPOINT_DIR, f"best_{tag}.pt"))
+
+    if visual is not None:
+        result["test"] = evaluate_visual(model, loaders["test"], device, criterion, splits["test"])
+    else:
+        result["test"] = evaluate(model, loaders["test"], device, criterion, splits["test"])
+    return result
 
 
 # --------------------------------------------------------------------------- #
@@ -273,12 +311,111 @@ def print_leakage_tables(results, baseline):
           f"{o['f1']:>10.2f}{o['f1_fake']:>10.2f}")
 
 
+VISUAL_CONFIGS = [("text", 32), ("text", 128), ("full", 32), ("full", 128)]
+
+
+def print_visual_table(result, key, title):
+    t = result[key]
+    print(f"\n--- {result['label']} — {title} ---")
+    print(f"{'Subset':<14}{'n':>5}{'fakes':>6}{'Acc':>8}{'Maj':>7}"
+          f"{'F1':>8}{'P':>8}{'R':>8}{'F1fake':>9}{'Pfake':>8}{'Rfake':>8}")
+    print("-" * 89)
+    r = t["per_category"]["REAL"]
+    print(f"{'REAL only':<14}{r['n']:>5}{0:>6}{r['accuracy']:>8.2f}{r['majority_acc']:>7.1f}"
+          f"{'—':>8}{'—':>8}{'—':>8}{'—':>9}{'—':>8}{'—':>8}")
+    rows = [(f"REAL+{c}", t["per_category"][c]) for c in VISUAL_FAKE_CATEGORIES]
+    rows.append(("Overall", t["overall"]))
+    for name, m in rows:
+        if name == "Overall":
+            print("-" * 89)
+        print(f"{name:<14}{m['n']:>5}{m['n_fake']:>6}{m['accuracy']:>8.2f}{m['majority_acc']:>7.1f}"
+              f"{m['f1']:>8.2f}{m['precision']:>8.2f}{m['recall']:>8.2f}"
+              f"{m['f1_fake']:>9.2f}{m['precision_fake']:>8.2f}{m['recall_fake']:>8.2f}")
+
+
+def print_visual_comparison(results):
+    maj = results[0]["test"]["overall"]["majority_acc"]
+    for key, title in (("test", "best-val-F1 checkpoint"), ("test_last", "epoch-30 model")):
+        print(f"\n--- Four-way comparison — test set — {title} — majority baseline {maj:.2f}% (predict real) ---")
+        print(f"{'config':<16}{'params':>11}{'ep':>4}{'Acc':>8}{'Maj':>7}{'F1':>8}{'P':>8}{'R':>8}"
+              f"{'F1fake':>9}{'CD F1':>8}{'CA F1':>8}{'REALacc':>9}")
+        print("-" * 104)
+        for r in results:
+            t = r[key]
+            o, pc = t["overall"], t["per_category"]
+            ep = r["best_epoch"] if key == "test" else len(r["history"])
+            print(f"{r['tag']:<16}{r['params']:>11,}{ep:>4}{o['accuracy']:>8.2f}{o['majority_acc']:>7.1f}"
+                  f"{o['f1']:>8.2f}{o['precision']:>8.2f}{o['recall']:>8.2f}{o['f1_fake']:>9.2f}"
+                  f"{pc['CD']['f1']:>8.2f}{pc['CA']['f1']:>8.2f}{pc['REAL']['accuracy']:>9.2f}")
+
+
+def main_visual(args, device):
+    records = load_records()
+    splits = make_visual_splits(records)
+    subset = [r for recs in splits.values() for r in recs]
+    visual = load_visual_features(sorted(subset, key=lambda r: r["index"]))
+    features = load_features(mmap=False)
+    print(f"visual subset {len(subset)} | train {len(splits['train'])} "
+          f"val {len(splits['val'])} test {len(splits['test'])} | seed {args.seed}")
+    print(f"clip {visual['clip'].shape} {visual['clip'].dtype} | motion {visual['motion'].shape} "
+          f"{visual['motion'].dtype} | id lists match frozen split: True")
+
+    configs = [(m, k) for m, k in VISUAL_CONFIGS if m in args.modalities and k in args.d_k]
+    results = []
+    for modalities, d_k in configs:
+        tag = f"visual_{modalities}_dk{d_k}"
+        label = f"{modalities.upper()} | d_k={d_k} | visual split"
+        results.append(run_experiment(False, splits, features, device, args.epochs, args.seed,
+                                      modalities=modalities, d_k=d_k, visual=visual,
+                                      tag=tag, label=label))
+
+    print(f"\n\n{'#' * 74}\n# FINAL RESULTS — visual split — test set\n{'#' * 74}")
+    print("Acc/Maj in %. Maj = accuracy of always predicting real on that subset. "
+          "F1/P/R macro (PRIMARY); *fake = fake class only.")
+    for r in results:
+        print_visual_table(r, "test", f"best-val-F1 checkpoint (epoch {r['best_epoch']})")
+        print_visual_table(r, "test_last", f"epoch-{len(r['history'])} model")
+    print_visual_comparison(results)
+
+    out = args.out or VISUAL_RESULTS_PATH
+    with open(out, "w") as f:
+        json.dump({
+            "config": {
+                "lr": LR, "batch_size": BATCH_SIZE, "epochs": args.epochs,
+                "optimizer": "Adam", "loss": "cross_entropy", "seed": args.seed,
+                "device": str(device), "subset": "frozen visual split (REAL+CD+CA)",
+                "split_file": "splits/visual_split.json", "split_sizes": {k: len(v) for k, v in splits.items()},
+                "primary_averaging": "macro",
+                "checkpoint_selection": "best val macro F1; epoch-30 model also reported",
+                "has_transcript_input": False,
+            },
+            "majority_baseline_test_acc": results[0]["test"]["overall"]["majority_acc"] if results else None,
+            "runs": results,
+        }, f, indent=2)
+    print(f"\nsaved -> {out}")
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--epochs", type=int, default=EPOCHS)
     ap.add_argument("--seed", type=int, default=SEED)
     ap.add_argument("--device", default=None, help="override (mps/cpu)")
+    ap.add_argument("--subset", choices=["full", "visual"], default="full")
+    ap.add_argument("--modalities", nargs="+", choices=["text", "full"])
+    ap.add_argument("--d-k", dest="d_k", nargs="+", type=int, choices=[32, 128])
+    ap.add_argument("--out")
     args = ap.parse_args()
+
+    set_seed(args.seed)
+    if args.subset == "visual":
+        args.modalities = args.modalities or ["text", "full"]
+        args.d_k = args.d_k or [32, 128]
+        device = torch.device(args.device) if args.device else get_device()
+        return main_visual(args, device)
+    if args.modalities not in (None, ["text"]):
+        ap.error("--subset full has no video features; only --modalities text is available")
+    if args.d_k not in (None, [32]) and not args.out:
+        ap.error("--subset full with d_k other than 32 needs --out, to keep results.json as the Phase 1 record")
 
     device = torch.device(args.device) if args.device else get_device()
     records = load_records()
@@ -288,9 +425,10 @@ def main():
     print(f"records {len(records)} | train {len(splits['train'])} "
           f"val {len(splits['val'])} test {len(splits['test'])} | seed {args.seed}")
 
+    d_k = args.d_k[0] if args.d_k else None
     results = [
-        run_experiment(False, splits, features, device, args.epochs, args.seed),
-        run_experiment(True, splits, features, device, args.epochs, args.seed),
+        run_experiment(False, splits, features, device, args.epochs, args.seed, d_k=d_k),
+        run_experiment(True, splits, features, device, args.epochs, args.seed, d_k=d_k),
     ]
     baseline = transcript_only_baseline(splits["test"])
 
@@ -305,7 +443,7 @@ def main():
     print("\n(diff = (ours - paper) / paper x 100; CLAUDE.md tolerance is +/-5-10%)")
     print_leakage_tables(results, baseline)
 
-    with open(RESULTS_PATH, "w") as f:
+    with open(args.out or RESULTS_PATH, "w") as f:
         json.dump({
             "config": {
                 "lr": LR, "batch_size": BATCH_SIZE, "epochs": args.epochs,
@@ -319,7 +457,7 @@ def main():
             "runs": results,
             "transcript_only_baseline": baseline,
         }, f, indent=2)
-    print(f"\nsaved -> {RESULTS_PATH}")
+    print(f"\nsaved -> {args.out or RESULTS_PATH}")
 
 
 if __name__ == "__main__":

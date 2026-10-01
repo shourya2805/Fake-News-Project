@@ -1,0 +1,20 @@
+# data + cached features are large / not ours to redistribute
+data/
+features/
+videos/
+features/video/
+
+# python
+__pycache__/
+*.pyc
+.venv/
+checkpoints/
+weights/
+results.json
+.claude/settings.local.json
+
+x_cookies.txt
+sophos.pem
+combined-ca.pem
+runs/
+dist/

@@ -12,6 +12,9 @@ Mappings (confirmed by the counts, which match the paper's 893/600/450/300/150):
 
 import json
 import os
+import sys
+from datetime import datetime, timezone
+from pathlib import Path
 
 import numpy as np
 import torch
@@ -31,6 +34,12 @@ CATEGORY_MAP = {                              # paper name -> code
 }
 FAKE_CATEGORIES = ["CD", "CE", "SV", "CA"]
 CATEGORIES = ["REAL"] + FAKE_CATEGORIES
+
+VIDEO_DIR = Path("videos")
+VISUAL_CATEGORIES = ["REAL", "CD", "CA"]
+VISUAL_SPLIT_PATH = Path("splits/visual_split.json")
+VISUAL_FEATURE_DIR = Path("features/video")
+VISUAL_FEATURE_FILES = {"clip": "clip", "motion": "motion"}
 
 SEED = 42
 SPLIT_RATIOS = (0.70, 0.15, 0.15)             # train / val / test
@@ -101,6 +110,66 @@ def make_splits(records, ratios=SPLIT_RATIOS, seed=SEED):
     }
 
 
+def video_path(record, video_dir=VIDEO_DIR):
+    return Path(video_dir) / f"{record['video_id']}.mp4"
+
+
+def scan_visual_subset(records, video_dir=VIDEO_DIR):
+    return [
+        r for r in records
+        if r["category"] in VISUAL_CATEGORIES
+        and video_path(r, video_dir).is_file()
+        and video_path(r, video_dir).stat().st_size > 0
+    ]
+
+
+def freeze_visual_split(splits, path=VISUAL_SPLIT_PATH):
+    subset = [r for recs in splits.values() for r in recs]
+    payload = {
+        "created": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "seed": SEED,
+        "ratios": list(SPLIT_RATIOS),
+        "stratified_on": VISUAL_CATEGORIES,
+        "subset_size": len(subset),
+        "category_counts": {c: _counts(subset, "category").get(c, 0) for c in VISUAL_CATEGORIES},
+        "split_counts": {
+            name: {c: _counts(recs, "category").get(c, 0) for c in VISUAL_CATEGORIES}
+            for name, recs in splits.items()
+        },
+        "splits": {name: [r["video_id"] for r in recs] for name, recs in splits.items()},
+    }
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(payload, indent=2))
+    return payload
+
+
+def load_visual_split(records=None, path=VISUAL_SPLIT_PATH, video_dir=VIDEO_DIR, refresh=False):
+    records = records if records is not None else load_records()
+    path = Path(path)
+    if refresh or not path.exists():
+        splits = make_splits(scan_visual_subset(records, video_dir))
+        freeze_visual_split(splits, path)
+    frozen = json.loads(path.read_text())
+    by_id = {r["video_id"]: r for r in records}
+    unknown = [v for ids in frozen["splits"].values() for v in ids if v not in by_id]
+    if unknown:
+        raise ValueError(f"{len(unknown)} video_ids in {path} are not in {DATA_PATH}")
+    return {
+        name: sorted((by_id[v] for v in ids), key=lambda r: r["index"])
+        for name, ids in frozen["splits"].items()
+    }
+
+
+def build_visual_subset(records=None, path=VISUAL_SPLIT_PATH, video_dir=VIDEO_DIR, refresh=False):
+    splits = load_visual_split(records, path, video_dir, refresh)
+    return sorted((r for recs in splits.values() for r in recs), key=lambda r: r["index"])
+
+
+def make_visual_splits(records=None, path=VISUAL_SPLIT_PATH, video_dir=VIDEO_DIR, refresh=False):
+    return load_visual_split(records, path, video_dir, refresh)
+
+
 class FMNVDDataset(Dataset):
     """Serves cached BERT token embeddings + attention masks for a split.
 
@@ -108,9 +177,15 @@ class FMNVDDataset(Dataset):
     mask (written that way by `extract_features.py`) — never silent padding.
     """
 
-    def __init__(self, records, feature_dir=FEATURE_DIR, features=None):
+    def __init__(self, records, feature_dir=FEATURE_DIR, features=None, visual=None):
         self.records = records
         self.features = features if features is not None else load_features(feature_dir)
+        self.visual = visual
+        if visual is not None:
+            missing = [r["video_id"] for r in records if r["video_id"] not in visual["row"]]
+            if missing:
+                raise ValueError(f"{len(missing)} records have no visual features, e.g. {missing[:3]}")
+            self.visual_rows = np.array([visual["row"][r["video_id"]] for r in records], dtype=np.int64)
         self.indices = np.array([r["index"] for r in records], dtype=np.int64)
         self.labels = np.array([r["label"] for r in records], dtype=np.int64)
         self.has_transcript = np.array(
@@ -123,7 +198,7 @@ class FMNVDDataset(Dataset):
     def __getitem__(self, i):
         j = self.indices[i]
         f = self.features
-        return {
+        item = {
             "title": torch.from_numpy(np.asarray(f["title_emb"][j], dtype=np.float32)),
             "title_mask": torch.from_numpy(
                 np.asarray(f["title_mask"][j], dtype=np.float32)
@@ -137,6 +212,11 @@ class FMNVDDataset(Dataset):
             "has_transcript": torch.tensor(self.has_transcript[i]),
             "label": torch.tensor(self.labels[i]),
         }
+        if self.visual is not None:
+            k = self.visual_rows[i]
+            item["clip"] = torch.from_numpy(np.asarray(self.visual["clip"][k], dtype=np.float32))
+            item["motion"] = torch.from_numpy(np.asarray(self.visual["motion"][k], dtype=np.float32))
+        return item
 
 
 FEATURE_FILES = ["title_emb", "title_mask", "transcript_emb", "transcript_mask"]
@@ -158,6 +238,21 @@ def load_features(feature_dir=FEATURE_DIR, mmap=True):
                    mmap_mode="r" if mmap else None)
         for n in FEATURE_FILES
     }
+
+
+def load_visual_features(records=None, feature_dir=VISUAL_FEATURE_DIR, mmap=False):
+    order = [r["video_id"] for r in (records if records is not None else build_visual_subset())]
+    out = {}
+    for key, stem in VISUAL_FEATURE_FILES.items():
+        ids = json.loads((Path(feature_dir) / f"{stem}_ids.json").read_text())
+        if ids != order:
+            raise ValueError(f"{stem}_ids.json does not match the frozen visual split order")
+        out[key] = np.load(Path(feature_dir) / f"{stem}_features.npy", mmap_mode="r" if mmap else None)
+        if len(out[key]) != len(order):
+            raise ValueError(f"{stem}_features.npy has {len(out[key])} rows, expected {len(order)}")
+    out["ids"] = order
+    out["row"] = {v: i for i, v in enumerate(order)}
+    return out
 
 
 # --------------------------------------------------------------------------- #
@@ -239,5 +334,58 @@ def main():
         print(f"{name:<8}" + "".join(row))
 
 
+def _balance(records):
+    fake = sum(r["label"] for r in records) / len(records)
+    return fake, max(fake, 1 - fake), "fake" if fake >= 0.5 else "real"
+
+
+def visual_report(refresh=False):
+    records = load_records()
+    existed = VISUAL_SPLIT_PATH.exists() and not refresh
+    splits = make_visual_splits(records, refresh=refresh)
+    subset = [r for recs in splits.values() for r in recs]
+    eligible = [r for r in records if r["category"] in VISUAL_CATEGORIES]
+    frozen = json.loads(VISUAL_SPLIT_PATH.read_text())
+    missing = sum(1 for r in subset if not video_path(r).is_file())
+
+    print(f"frozen split                  : {VISUAL_SPLIT_PATH}  "
+          f"({'loaded from file' if existed else 'built from videos/ and written'}, created {frozen['created']})")
+    print(f"visual subset                 : {len(subset)} of {len(eligible)} REAL+CD+CA records with video")
+    print(f"split seed                    : {SEED}")
+    print(f"split ratios (train/val/test) : "
+          f"{SPLIT_RATIOS[0]:.0%}/{SPLIT_RATIOS[1]:.0%}/{SPLIT_RATIOS[2]:.0%}"
+          f"  (stratified on REAL/CD/CA)")
+    print()
+
+    print(f"{'split':<8}{'n':>6}{'%':>7}   "
+          + "".join(f"{c:>6}" for c in VISUAL_CATEGORIES)
+          + f"{'real':>7}{'fake':>7}{'%fake':>8}")
+    for name, recs in list(splits.items()) + [("ALL", subset)]:
+        cat = _counts(recs, "category")
+        lab = _counts(recs, "label")
+        real, fake = lab.get(0, 0), lab.get(1, 0)
+        print(f"{name:<8}{len(recs):>6}{len(recs) / len(subset):>7.1%}   "
+              + "".join(f"{cat.get(c, 0):>6}" for c in VISUAL_CATEGORIES)
+              + f"{real:>7}{fake:>7}{fake / len(recs):>8.1%}")
+    print()
+
+    ids = [set(r["index"] for r in recs) for recs in splits.values()]
+    disjoint = not (ids[0] & ids[1] or ids[0] & ids[2] or ids[1] & ids[2])
+    covered = set().union(*ids) == {r["index"] for r in subset}
+    print(f"CHECK splits disjoint         : {disjoint}")
+    print(f"CHECK splits cover subset     : {covered}")
+    print(f"CHECK no CE/SV in subset      : {all(r['category'] in VISUAL_CATEGORIES for r in subset)}")
+    print(f"CHECK frozen videos on disk   : {missing == 0}  ({missing} missing)")
+    print()
+
+    print(f"{'dataset':<26}{'n':>6}{'%fake':>8}{'majority':>10}{'baseline acc':>14}")
+    for name, recs in [("visual subset (REAL+CD+CA)", subset), ("full dataset", records)]:
+        fake, acc, majority = _balance(recs)
+        print(f"{name:<26}{len(recs):>6}{fake:>8.1%}{majority:>10}{acc:>14.1%}")
+
+
 if __name__ == "__main__":
-    main()
+    if "--visual" in sys.argv[1:]:
+        visual_report(refresh="--refresh" in sys.argv[1:])
+    else:
+        main()
