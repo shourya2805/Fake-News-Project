@@ -7,8 +7,13 @@ Appended to as the reproduction is built.
 
 ## Environment
 - **Python 3.13 / venv at `.venv/`** — paper states no interpreter or dependency
-  versions. Installed: torch 2.13.0, transformers 5.16.1, numpy 2.5.2,
-  scikit-learn 1.9.0.
+  versions. Installed: torch 2.14.0 (pinned in `requirements.txt` since
+  2026-10-12), transformers 5.16.1, numpy 2.5.2, scikit-learn 1.9.0. The torch
+  that produced the committed Phase 1 `results.json` was not recorded (see
+  "Environment drift").
+- **Colab runs use Colab's preinstalled torch**, not the pin, and install only
+  `requirements-text.txt`. Exact torch / transformers / CUDA versions are written
+  into each Colab results file instead.
 - **Device: `cuda` if available, else `mps`, else `cpu`.** The paper does not
   state hardware. CUDA was added so the same code runs on Google Colab; the
   Phase 1 results were produced on `mps`.

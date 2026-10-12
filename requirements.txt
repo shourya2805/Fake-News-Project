@@ -1,4 +1,4 @@
-torch
+torch==2.14.0
 transformers
 numpy
 scikit-learn
@@ -9,3 +9,5 @@ open_clip_torch
 faster-whisper
 scipy
 gdown
+sentencepiece
+protobuf

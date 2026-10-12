@@ -1,0 +1,7 @@
+transformers==5.16.1
+sentencepiece
+protobuf
+numpy
+scikit-learn
+scipy
+tqdm

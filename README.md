@@ -2,8 +2,10 @@
 
 Reproduction of the FMNVD baseline from *"FMNV: A Dataset of Media-Published News
 Videos for Fake News Detection"* (Wang, Qian & Li, ICIC 2025, arXiv:2504.07687v3),
-restricted to the **title + audio-transcript** configuration — the paper's
-"w/o Frames" ablation row. No visual branch is built.
+Phase 1 (documented below) is the **title + audio-transcript** configuration — the
+paper's "w/o Frames" ablation row. Phase 2 adds the visual branch (CLIP frame +
+3D ResNeXt-101 motion features, `model.py` `modalities="full"`), trained on a frozen
+REAL+CD+CA visual subset; see DEVIATIONS.md for its design and results.
 
 Binary task: is a news video real (0) or fake (1). The 1500 fake samples fall into
 four manipulation categories that are scored separately: CD, CE, SV, CA.
@@ -20,8 +22,8 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-Device selection is automatic: `mps` on Apple Silicon, otherwise `cpu`. CUDA is
-never used. `python utils.py` prints the detected device.
+Device selection is automatic: `cuda` if available (e.g. Google Colab), else `mps`
+on Apple Silicon, else `cpu`. `python utils.py` prints the detected device.
 
 ## Run
 
@@ -55,7 +57,7 @@ dataset.py             loading, label/category mapping, stratified splits
 extract_features.py    frozen bert-base-uncased -> features/
 train.py               training loop + overall/per-category evaluation
 test_smoke.py          shape smoke test
-results.json           written by train.py (gitignored)
+results.json           written by train.py (tracked; the cited Phase 1 record)
 ```
 
 ## Architecture
