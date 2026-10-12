@@ -33,9 +33,9 @@ from sklearn.metrics import (accuracy_score, f1_score, precision_score,
                              recall_score)
 from torch.utils.data import DataLoader
 
-from dataset import (FAKE_CATEGORIES, FMNVDDataset, SEED, VISUAL_CATEGORIES,
-                     load_features, load_records, load_visual_features,
-                     make_splits, make_visual_splits)
+from dataset import (FAKE_CATEGORIES, FULL_SPLIT_PATH, FMNVDDataset, SEED,
+                     VISUAL_CATEGORIES, file_sha256, load_features, load_full_split,
+                     load_records, load_visual_features, make_visual_splits)
 from determinism import make_generator, seed_worker, set_seed
 from model import FMNVD
 from utils import get_device
@@ -419,7 +419,7 @@ def main():
 
     device = torch.device(args.device) if args.device else get_device()
     records = load_records()
-    splits = make_splits(records, seed=args.seed)
+    splits = load_full_split(records)
     features = load_features(mmap=False)
 
     print(f"records {len(records)} | train {len(splits['train'])} "
@@ -449,6 +449,7 @@ def main():
                 "lr": LR, "batch_size": BATCH_SIZE, "epochs": args.epochs,
                 "optimizer": "Adam", "loss": "cross_entropy", "seed": args.seed,
                 "device": str(device), "split": "70/15/15 stratified on category",
+                "split_file": str(FULL_SPLIT_PATH), "split_sha256": file_sha256(FULL_SPLIT_PATH),
                 "scope": "title + audio (paper 'w/o Frames')",
                 "primary_averaging": "macro",
                 "checkpoint_selection": "best val macro F1",

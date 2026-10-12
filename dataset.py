@@ -10,6 +10,7 @@ Mappings (confirmed by the counts, which match the paper's 893/600/450/300/150):
     class  ""  -> REAL    ft -> CD    fv -> CE    fa -> SV    fc -> CA
 """
 
+import hashlib
 import json
 import os
 import sys
@@ -38,6 +39,7 @@ CATEGORIES = ["REAL"] + FAKE_CATEGORIES
 VIDEO_DIR = Path("videos")
 VISUAL_CATEGORIES = ["REAL", "CD", "CA"]
 VISUAL_SPLIT_PATH = Path("splits/visual_split.json")
+FULL_SPLIT_PATH = Path("splits/full_split.json")
 VISUAL_FEATURE_DIR = Path("features/video")
 VISUAL_FEATURE_FILES = {"clip": "clip", "motion": "motion"}
 
@@ -108,6 +110,56 @@ def make_splits(records, ratios=SPLIT_RATIOS, seed=SEED):
         "val": [records[i] for i in sorted(val_idx)],
         "test": [records[i] for i in sorted(test_idx)],
     }
+
+
+def file_sha256(path):
+    return hashlib.sha256(Path(path).read_bytes()).hexdigest()
+
+
+def freeze_full_split(records=None, path=FULL_SPLIT_PATH):
+    records = records if records is not None else load_records()
+    splits = make_splits(records)
+    payload = {
+        "created": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "source": "dataset.make_splits(load_records(), seed=SEED)",
+        "seed": SEED,
+        "ratios": list(SPLIT_RATIOS),
+        "stratified_on": CATEGORIES,
+        "subset_size": len(records),
+        "category_counts": {c: _counts(records, "category").get(c, 0) for c in CATEGORIES},
+        "split_counts": {
+            name: {c: _counts(recs, "category").get(c, 0) for c in CATEGORIES}
+            for name, recs in splits.items()
+        },
+        "splits": {
+            name: {"index": [r["index"] for r in recs], "video_id": [r["video_id"] for r in recs]}
+            for name, recs in splits.items()
+        },
+    }
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(payload, indent=2))
+    return payload
+
+
+def load_full_split(records=None, path=FULL_SPLIT_PATH):
+    records = records if records is not None else load_records()
+    path = Path(path)
+    if not path.exists():
+        raise FileNotFoundError(f"{path} missing — run: python dataset.py --freeze-full")
+    frozen = json.loads(path.read_text())
+    out = {}
+    for name, ids in frozen["splits"].items():
+        if len(ids["index"]) != len(ids["video_id"]):
+            raise ValueError(f"{path}: {name} index and video_id lists differ in length")
+        for i, v in zip(ids["index"], ids["video_id"]):
+            if not 0 <= i < len(records) or records[i]["video_id"] != v:
+                raise ValueError(f"{path}: {name} index {i} does not hold video_id {v} in {DATA_PATH}")
+        out[name] = [records[i] for i in sorted(ids["index"])]
+    seen = [r["index"] for recs in out.values() for r in recs]
+    if len(seen) != len(set(seen)) or len(seen) != len(records):
+        raise ValueError(f"{path}: splits are not a disjoint cover of all {len(records)} records")
+    return out
 
 
 def video_path(record, video_dir=VIDEO_DIR):
@@ -387,5 +439,12 @@ def visual_report(refresh=False):
 if __name__ == "__main__":
     if "--visual" in sys.argv[1:]:
         visual_report(refresh="--refresh" in sys.argv[1:])
+    elif "--freeze-full" in sys.argv[1:]:
+        if FULL_SPLIT_PATH.exists() and "--refresh" not in sys.argv[1:]:
+            print(f"{FULL_SPLIT_PATH} already exists — not overwritten (add --refresh to rebuild)")
+        else:
+            freeze_full_split()
+            print(f"wrote {FULL_SPLIT_PATH}")
+        print(f"sha256 {file_sha256(FULL_SPLIT_PATH)}")
     else:
         main()

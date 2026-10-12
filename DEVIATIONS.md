@@ -75,6 +75,26 @@ the following implementation details are ours:
   fake rate is 62.7% in all three splits.
 - **Split is a single fixed partition, not k-fold cross-validation.** The paper
   does not say which it used.
+- **Frozen to `splits/full_split.json` (2026-10-12), sha256
+  `1a4adcada317524dbe5c3498cb9a82bdbea96995cadf06b39c209c07950d5ff9`.** Generated
+  by `python dataset.py --freeze-full` from `make_splits(load_records(), seed=42)`,
+  i.e. the exact partition Phase 1 was trained on. The file stores both the
+  data.json `index` and the `video_id` of every record; `load_full_split` refuses
+  to load if either disagrees with data.json or the three splits are not a
+  disjoint cover of all 2,393 records. `train.py --subset full` now loads this file
+  instead of calling `make_splits`.
+  - **Equivalence check, two parts.** (a) The file reproduces the in-code
+    partition record for record: train 1675 / val 359 / test 359, identical
+    ordered index and `video_id` lists. (b) Under torch 2.14.0, training from the
+    file reproduces `results_torch214.json` bit for bit — both runs' full epoch
+    history, every test metric, and the transcript-only baseline. Since the file
+    changes only how the partition is obtained, (a) + (b) together show the
+    committed 77.16 / 74.34 result is unaffected by the switch; that number itself
+    is not reproducible in the current environment (see "Environment drift").
+  - **Behaviour change:** before, `train.py --subset full --seed N` also re-drew
+    the split with seed N. Now the split is fixed and `--seed` changes only model
+    init, shuffle order and dropout — the same convention the visual split already
+    uses, and what the multi-seed encoder comparison needs.
 - **Records are keyed by their position in `data.json`**, and that index is what
   the cached feature arrays are indexed by, so splits and features stay aligned.
 - **`contextual_class` (action/event/object) is ignored** — it is metadata, not a
