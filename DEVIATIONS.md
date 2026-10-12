@@ -393,6 +393,20 @@ token count. REAL/CD/CA (stored >= 20 tokens) land at median 1.00, range
   code. Runs remain deterministic within one environment. `results.json` is
   kept as the recorded Phase 1 result; the torch version used for it was not
   recorded.
+- **Two stored Phase 1 results, one cited figure.**
+
+  | File | torch | without flag (acc / macro F1) | with flag (acc / macro F1) |
+  |---|---|---|---|
+  | `results.json` | not recorded (pre-2026-09-30 environment) | 77.16 / 74.34 | 75.21 / 72.43 |
+  | `results_torch214.json` | 2.14.0 | 76.60 / 74.23 | 76.60 / 74.13 |
+
+  Both are seed 42, `mps`, the same split and the same code. **77.16 / 74.34
+  remains the cited Phase 1 figure.** It is not reproducible in the current
+  environment, and the torch version that produced it was never recorded, so
+  it cannot be recovered by reinstalling a known version. This is the
+  framework-drift limitation: within one environment runs are bit-identical;
+  across torch versions they are not. `results_torch214.json` is the reference
+  for any check that has to be re-run today.
 
 ## Multi-seed study (`multiseed.py`)
 
