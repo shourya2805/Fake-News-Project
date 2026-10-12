@@ -525,3 +525,31 @@ our additions, evaluated as an ablation on the frozen visual split.
   226-sample validation set.
 - **Eight cells (four combinations × two models) and three paired comparisons
   are reported without multiple-comparison correction.**
+
+## Output naming and run isolation (2026-10-12)
+
+Before the encoder comparison, every artefact that a non-Phase-1 run could
+overwrite was namespaced. None of this changes any result.
+
+- **The encoder slug is in every training tag**, e.g.
+  `bert-base-uncased_without_flag`, `bert-base-uncased_visual_full_dk32`. The
+  existing local checkpoints were renamed to match (no retraining).
+- **`--out` is mandatory except for the canonical runs:** `train.py` with
+  `--subset full` or `--subset visual` at the defaults (`bert-base-uncased`,
+  seed 42, 30 epochs, default `--modalities`/`--d-k`), `multiseed.py` on the
+  visual split at its defaults, and `enhance.py` at its defaults. Only these may
+  write `results.json`, `results_visual.json`, `results_multiseed.json` and
+  `results_enhance.json`. Anything else exits with an error unless `--out` is given.
+- **Checkpoints of any run given `--out` go to `checkpoints/<out-stem>/`**, so only
+  a canonical run without `--out` writes the top-level checkpoint files.
+- **Per-seed caches are namespaced** as `runs/multiseed/<subset>/<encoder-slug>/`
+  and `runs/enhance/<encoder-slug>/` (the existing visual caches were moved there).
+  A cached seed is refused if it records a different encoder or different feature
+  hashes. Re-summarising the moved caches reproduces `results_multiseed.json` and
+  `results_enhance.json` exactly (summary and paired tests).
+- **`multiseed.py --subset full`** runs the Phase 1 configuration on the frozen
+  full split through `train.run_experiment`; no new training loop. Seed 42 with
+  `bert-base-uncased` reproduces the `without_flag` run of `results_torch214.json`
+  bit for bit. The full subset reports the best-val-F1 checkpoint only.
+- **`enhance.py` still has its own training loop** (`train_one`), a known
+  duplication. It was given `--encoder` and the namespacing above, nothing else.

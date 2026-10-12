@@ -1,7 +1,7 @@
 # FMNVD Reproduction — title + audio
 
 Reproduction of the FMNVD baseline from *"FMNV: A Dataset of Media-Published News
-Videos for Fake News Detection"* (Wang, Qian & Li, ICIC 2025, arXiv:2504.07687v3),
+Videos for Fake News Detection"* (Wang, Qian & Li, ICIC 2025, arXiv:2504.07687v3).
 Phase 1 (documented below) is the **title + audio-transcript** configuration — the
 paper's "w/o Frames" ablation row. Phase 2 adds the visual branch (CLIP frame +
 3D ResNeXt-101 motion features, `model.py` `modalities="full"`), trained on a frozen

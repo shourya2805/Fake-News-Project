@@ -11,8 +11,8 @@ from scipy import stats
 from sklearn.metrics import f1_score
 from torch.utils.data import DataLoader
 
-from dataset import (DEFAULT_ENCODER, FMNVDDataset, VISUAL_SPLIT_PATH, feature_dir_for,
-                     load_feature_meta, load_features, load_records,
+from dataset import (DEFAULT_ENCODER, ENCODERS, FMNVDDataset, VISUAL_SPLIT_PATH, encoder_slug,
+                     feature_dir_for, load_feature_meta, load_features, load_records,
                      load_visual_features, make_visual_splits)
 from determinism import make_generator, seed_worker, set_seed
 from model import FMNVD
@@ -29,8 +29,8 @@ COMBOS = {
     "threshold": (False, True),
     "weighted+threshold": (True, True),
 }
-RUN_DIR = Path("runs/enhance")
-OUT = Path("results_enhance.json")
+RUN_ROOT = Path("runs/enhance")
+CANONICAL_OUT = Path("results_enhance.json")
 METRICS = {
     "acc": lambda t: t["overall"]["accuracy"],
     "f1": lambda t: t["overall"]["f1"],
@@ -111,17 +111,20 @@ def train_one(modalities, weighted, seed, splits, features, text_dim, visual, de
     return out
 
 
-def run_seed(seed, splits, features, text_dim, visual, device, epochs):
-    path = RUN_DIR / f"seed{seed}.json"
+def run_seed(seed, run_dir, encoder, splits, features, text_dim, visual, device, epochs):
+    path = run_dir / f"seed{seed}.json"
     if path.exists():
-        return json.loads(path.read_text())
+        rec = json.loads(path.read_text())
+        if rec.get("encoder", DEFAULT_ENCODER) != encoder:
+            raise RuntimeError(f"{path} was run with encoder {rec.get('encoder')}, expected {encoder}")
+        return rec
     runs = {}
-    with open(RUN_DIR / f"seed{seed}.log", "w") as f, redirect_stdout(f):
+    with open(run_dir / f"seed{seed}.log", "w") as f, redirect_stdout(f):
         for modalities in MODELS:
             for weighted in (False, True):
                 runs[f"{modalities}_{'weighted' if weighted else 'unweighted'}"] = train_one(
                     modalities, weighted, seed, splits, features, text_dim, visual, device, epochs)
-    record = {"seed": seed, "split_sha256": split_digest(splits), "runs": runs}
+    record = {"seed": seed, "encoder": encoder, "split_sha256": split_digest(splits), "runs": runs}
     path.write_text(json.dumps(record, indent=2))
     return record
 
@@ -211,15 +214,23 @@ def main():
     parser.add_argument("--seeds", type=int, nargs="+", default=SEEDS)
     parser.add_argument("--epochs", type=int, default=EPOCHS)
     parser.add_argument("--device")
+    parser.add_argument("--encoder", choices=ENCODERS, default=DEFAULT_ENCODER)
+    parser.add_argument("--out")
     args = parser.parse_args()
 
-    RUN_DIR.mkdir(parents=True, exist_ok=True)
+    canonical = args.encoder == DEFAULT_ENCODER and args.seeds == SEEDS and args.epochs == EPOCHS
+    if not args.out and not canonical:
+        parser.error(f"--out is required except for the canonical run ({DEFAULT_ENCODER}, seeds {SEEDS}, "
+                     f"{EPOCHS} epochs), which writes {CANONICAL_OUT}")
+    out = Path(args.out) if args.out else CANONICAL_OUT
+    run_dir = RUN_ROOT / encoder_slug(args.encoder)
+    run_dir.mkdir(parents=True, exist_ok=True)
     device = torch.device(args.device) if args.device else get_device()
     records = load_records()
     splits = make_visual_splits(records)
     digest = split_digest(splits)
     visual = load_visual_features(sorted([r for v in splits.values() for r in v], key=lambda r: r["index"]))
-    feature_dir = feature_dir_for(DEFAULT_ENCODER)
+    feature_dir = feature_dir_for(args.encoder)
     features = load_features(feature_dir, mmap=False)
     text_dim = load_feature_meta(feature_dir)["hidden_size"]
     weights, counts = class_weights(splits["train"])
@@ -231,8 +242,8 @@ def main():
 
     results = []
     for seed in args.seeds:
-        cached = (RUN_DIR / f"seed{seed}.json").exists()
-        rec = run_seed(seed, splits, features, text_dim, visual, device, args.epochs)
+        cached = (run_dir / f"seed{seed}.json").exists()
+        rec = run_seed(seed, run_dir, args.encoder, splits, features, text_dim, visual, device, args.epochs)
         if rec["split_sha256"] != digest:
             raise RuntimeError(f"seed {seed} was run on a different split")
         print(f"seed {seed}: {'loaded from cache' if cached else 'trained'}")
@@ -244,9 +255,9 @@ def main():
     print_paired(tests, len(args.seeds))
     print(f"\nFour combinations x two models are compared without multiple-comparison correction.")
 
-    OUT.write_text(json.dumps({
+    out.write_text(json.dumps({
         "config": {
-            "seeds": args.seeds, "epochs": args.epochs, "lr": LR, "batch_size": BATCH_SIZE, "d_k": D_K,
+            "encoder": args.encoder, "seeds": args.seeds, "epochs": args.epochs, "lr": LR, "batch_size": BATCH_SIZE, "d_k": D_K,
             "device": str(device), "split_file": str(VISUAL_SPLIT_PATH), "split_sha256": digest,
             "class_weights": {"train_counts_real_fake": counts.tolist(), "weights_real_fake": weights.tolist(),
                               "rule": "inverse class frequency on the training split, normalised to mean 1"},
@@ -261,7 +272,7 @@ def main():
         "paired_tests": tests,
         "per_seed": results,
     }, indent=2))
-    print(f"saved -> {OUT}")
+    print(f"saved -> {out}")
 
 
 if __name__ == "__main__":

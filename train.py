@@ -33,10 +33,10 @@ from sklearn.metrics import (accuracy_score, f1_score, precision_score,
                              recall_score)
 from torch.utils.data import DataLoader
 
-from dataset import (DEFAULT_ENCODER, FAKE_CATEGORIES, FULL_SPLIT_PATH, FMNVDDataset,
-                     SEED, VISUAL_CATEGORIES, feature_dir_for, file_sha256, load_feature_meta,
-                     load_features, load_full_split, load_records, load_visual_features,
-                     make_visual_splits)
+from dataset import (DEFAULT_ENCODER, ENCODERS, FAKE_CATEGORIES, FULL_SPLIT_PATH,
+                     FMNVDDataset, SEED, VISUAL_CATEGORIES, encoder_slug, feature_dir_for,
+                     file_sha256, load_feature_meta, load_features, load_full_split,
+                     load_records, load_visual_features, make_visual_splits)
 from determinism import make_generator, seed_worker, set_seed
 from model import FMNVD
 from utils import get_device
@@ -165,10 +165,9 @@ def transcript_only_baseline(records):
     }
 
 
-def run_experiment(use_flag, splits, features, device, epochs, seed, *, text_dim,
-                   modalities="text", d_k=None, visual=None, tag=None, label=None,
-                   save_checkpoints=True):
-    tag = tag or ("with_flag" if use_flag else "without_flag")
+def run_experiment(use_flag, splits, features, device, epochs, seed, *, text_dim, tag,
+                   modalities="text", d_k=None, visual=None, label=None,
+                   save_checkpoints=True, checkpoint_dir=CHECKPOINT_DIR):
     label = label or ("WITH has_transcript" if use_flag else "WITHOUT has_transcript")
     print(f"\n{'=' * 74}\nRUN: {label}\n{'=' * 74}")
 
@@ -214,7 +213,8 @@ def run_experiment(use_flag, splits, features, device, epochs, seed, *, text_dim
               f"{va['f1']:>14.2f}{'  <--' if is_best else '':>6}")
 
     print(f"\nbest checkpoint: epoch {best_epoch} (val macro F1 {best_f1:.2f})")
-    os.makedirs(CHECKPOINT_DIR, exist_ok=True)
+    if save_checkpoints:
+        os.makedirs(checkpoint_dir, exist_ok=True)
     result = {
         "tag": tag, "label": label, "use_has_transcript": use_flag,
         "params": n_params, "best_epoch": best_epoch, "best_val_f1_macro": best_f1,
@@ -223,12 +223,12 @@ def run_experiment(use_flag, splits, features, device, epochs, seed, *, text_dim
     if visual is not None:
         result.update(modalities=modalities, d_k=model.d_k)
         if save_checkpoints:
-            torch.save(model.state_dict(), os.path.join(CHECKPOINT_DIR, f"last_{tag}.pt"))
+            torch.save(model.state_dict(), os.path.join(checkpoint_dir, f"last_{tag}.pt"))
         result["test_last"] = evaluate_visual(model, loaders["test"], device, criterion, splits["test"])
 
     model.load_state_dict(best_state)
     if save_checkpoints:
-        torch.save(best_state, os.path.join(CHECKPOINT_DIR, f"best_{tag}.pt"))
+        torch.save(best_state, os.path.join(checkpoint_dir, f"best_{tag}.pt"))
 
     if visual is not None:
         result["test"] = evaluate_visual(model, loaders["test"], device, criterion, splits["test"])
@@ -284,8 +284,8 @@ def print_target_table(results, suffix, avg_name):
 
 
 def print_leakage_tables(results, baseline):
-    by_tag = {r["tag"]: r for r in results}
-    a, b = by_tag["without_flag"], by_tag["with_flag"]
+    a = next(r for r in results if not r["use_has_transcript"])
+    b = next(r for r in results if r["use_has_transcript"])
 
     print(f"\n--- Leakage effect of the has_transcript flag (test macro F1) ---")
     print(f"{'Subset':<12}{'without flag':>14}{'with flag':>12}{'delta':>9}")
@@ -351,14 +351,34 @@ def print_visual_comparison(results):
                   f"{pc['CD']['f1']:>8.2f}{pc['CA']['f1']:>8.2f}{pc['REAL']['accuracy']:>9.2f}")
 
 
+def feature_provenance(encoder):
+    feature_dir = feature_dir_for(encoder)
+    meta = load_feature_meta(feature_dir)
+    return feature_dir, meta["hidden_size"], {
+        "encoder": encoder, "feature_dir": str(feature_dir),
+        "feature_files_sha256": meta["files_sha256"],
+    }
+
+
+def is_canonical(args):
+    return (args.encoder == DEFAULT_ENCODER and args.seed == SEED and args.epochs == EPOCHS
+            and args.modalities is None and args.d_k is None)
+
+
+def checkpoint_dir_for(args):
+    if not args.out:
+        return CHECKPOINT_DIR
+    return os.path.join(CHECKPOINT_DIR, os.path.splitext(os.path.basename(args.out))[0])
+
+
 def main_visual(args, device):
     records = load_records()
     splits = make_visual_splits(records)
     subset = [r for recs in splits.values() for r in recs]
     visual = load_visual_features(sorted(subset, key=lambda r: r["index"]))
-    feature_dir = feature_dir_for(DEFAULT_ENCODER)
+    feature_dir, text_dim, provenance = feature_provenance(args.encoder)
     features = load_features(feature_dir, mmap=False)
-    text_dim = load_feature_meta(feature_dir)["hidden_size"]
+    slug = encoder_slug(args.encoder)
     print(f"visual subset {len(subset)} | train {len(splits['train'])} "
           f"val {len(splits['val'])} test {len(splits['test'])} | seed {args.seed}")
     print(f"clip {visual['clip'].shape} {visual['clip'].dtype} | motion {visual['motion'].shape} "
@@ -367,11 +387,12 @@ def main_visual(args, device):
     configs = [(m, k) for m, k in VISUAL_CONFIGS if m in args.modalities and k in args.d_k]
     results = []
     for modalities, d_k in configs:
-        tag = f"visual_{modalities}_dk{d_k}"
+        tag = f"{slug}_visual_{modalities}_dk{d_k}"
         label = f"{modalities.upper()} | d_k={d_k} | visual split"
         results.append(run_experiment(False, splits, features, device, args.epochs, args.seed,
                                       text_dim=text_dim, modalities=modalities, d_k=d_k,
-                                      visual=visual, tag=tag, label=label))
+                                      visual=visual, tag=tag, label=label,
+                                      checkpoint_dir=checkpoint_dir_for(args)))
 
     print(f"\n\n{'#' * 74}\n# FINAL RESULTS — visual split — test set\n{'#' * 74}")
     print("Acc/Maj in %. Maj = accuracy of always predicting real on that subset. "
@@ -387,7 +408,7 @@ def main_visual(args, device):
             "config": {
                 "lr": LR, "batch_size": BATCH_SIZE, "epochs": args.epochs,
                 "optimizer": "Adam", "loss": "cross_entropy", "seed": args.seed,
-                "device": str(device), "subset": "frozen visual split (REAL+CD+CA)",
+                "device": str(device), "subset": "frozen visual split (REAL+CD+CA)", **provenance,
                 "split_file": "splits/visual_split.json", "split_sizes": {k: len(v) for k, v in splits.items()},
                 "primary_averaging": "macro",
                 "checkpoint_selection": "best val macro F1; epoch-30 model also reported",
@@ -407,8 +428,15 @@ def main():
     ap.add_argument("--subset", choices=["full", "visual"], default="full")
     ap.add_argument("--modalities", nargs="+", choices=["text", "full"])
     ap.add_argument("--d-k", dest="d_k", nargs="+", type=int, choices=[32, 128])
+    ap.add_argument("--encoder", choices=ENCODERS, default=DEFAULT_ENCODER)
     ap.add_argument("--out")
     args = ap.parse_args()
+
+    if not args.out and not is_canonical(args):
+        ap.error("--out is required for any run other than the two canonical ones "
+                 f"(--subset full or visual with encoder {DEFAULT_ENCODER}, seed {SEED}, "
+                 f"{EPOCHS} epochs, default --modalities/--d-k), so results.json and "
+                 "results_visual.json are never overwritten")
 
     set_seed(args.seed)
     if args.subset == "visual":
@@ -418,15 +446,13 @@ def main():
         return main_visual(args, device)
     if args.modalities not in (None, ["text"]):
         ap.error("--subset full has no video features; only --modalities text is available")
-    if args.d_k not in (None, [32]) and not args.out:
-        ap.error("--subset full with d_k other than 32 needs --out, to keep results.json as the Phase 1 record")
 
     device = torch.device(args.device) if args.device else get_device()
     records = load_records()
     splits = load_full_split(records)
-    feature_dir = feature_dir_for(DEFAULT_ENCODER)
+    feature_dir, text_dim, provenance = feature_provenance(args.encoder)
     features = load_features(feature_dir, mmap=False)
-    text_dim = load_feature_meta(feature_dir)["hidden_size"]
+    slug = encoder_slug(args.encoder)
 
     print(f"records {len(records)} | train {len(splits['train'])} "
           f"val {len(splits['val'])} test {len(splits['test'])} | seed {args.seed}")
@@ -434,9 +460,11 @@ def main():
     d_k = args.d_k[0] if args.d_k else None
     results = [
         run_experiment(False, splits, features, device, args.epochs, args.seed,
-                       text_dim=text_dim, d_k=d_k),
+                       text_dim=text_dim, d_k=d_k, tag=f"{slug}_without_flag",
+                       checkpoint_dir=checkpoint_dir_for(args)),
         run_experiment(True, splits, features, device, args.epochs, args.seed,
-                       text_dim=text_dim, d_k=d_k),
+                       text_dim=text_dim, d_k=d_k, tag=f"{slug}_with_flag",
+                       checkpoint_dir=checkpoint_dir_for(args)),
     ]
     baseline = transcript_only_baseline(splits["test"])
 
@@ -458,6 +486,7 @@ def main():
                 "optimizer": "Adam", "loss": "cross_entropy", "seed": args.seed,
                 "device": str(device), "split": "70/15/15 stratified on category",
                 "split_file": str(FULL_SPLIT_PATH), "split_sha256": file_sha256(FULL_SPLIT_PATH),
+                **provenance,
                 "scope": "title + audio (paper 'w/o Frames')",
                 "primary_averaging": "macro",
                 "checkpoint_selection": "best val macro F1",
