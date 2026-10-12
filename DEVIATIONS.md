@@ -118,6 +118,46 @@ the following implementation details are ours:
 - **Empty transcripts skip BERT entirely** and are written as all-zero embedding +
   all-zero mask, asserted after saving.
 
+### Per-encoder cache (2026-10-12)
+- **`--encoder` selects one of four frozen encoders:** `bert-base-uncased`,
+  `roberta-base`, `microsoft/deberta-v3-base`,
+  `sentence-transformers/all-mpnet-base-v2`. All four are 768-d, so the
+  projection layers are unchanged; `FMNVD` now takes `text_dim` as a required
+  argument, read from the cache's `meta.json` rather than a module constant.
+- **Each encoder caches to `features/<slug>/`** (`/` → `__`). Before this, a fixed
+  `features/*.npy` path meant a new encoder would silently have been served the
+  BERT arrays. `meta.json` records encoder, tokenizer class, hidden size, max
+  lengths, truncation counts, data.json sha256, device, library versions and a
+  sha256 of every array.
+- **The Phase 1 BERT cache was moved, not re-extracted**, into
+  `features/bert-base-uncased/` (array sha256s identical before and after). Its
+  `meta.json` says it predates meta.json: extraction date, device and versions
+  were never recorded. Phase 1 still reproduces `results_torch214.json` bit for
+  bit from the moved cache.
+- **The same extraction path is used for every encoder:** `last_hidden_state`,
+  same shared-weights rule, same padding zeroing, same empty-transcript rule
+  (never tokenized, all-zero embedding + all-zero mask, asserted after saving;
+  917 such rows for every encoder). For `all-mpnet-base-v2` this means its token
+  states are used directly, not the mean-pooled sentence embedding it was trained
+  to produce — co-attention needs token sequences.
+- **Token budgets are a confound in the encoder comparison.** 32 / 64 *tokens*
+  cover different amounts of text under different tokenizers (WordPiece,
+  byte-level BPE, SentencePiece). Measured on data.json (median words per budget):
+
+  | encoder | titles > 32 tokens | words in 32 | transcripts > 64 tokens | words in 64 |
+  |---|---|---|---|---|
+  | bert-base-uncased | 1106 / 2393 | 21.5 | 1242 / 1476 | 50.3 |
+  | roberta-base | 1113 | 21.2 | 1238 | 51.7 |
+  | deberta-v3-base | 1058 | 22.5 | 1236 | 51.9 |
+  | all-mpnet-base-v2 | 1106 | 21.5 | 1242 | 50.3 |
+
+  The spread is about one word of title and 1.6 words of transcript, so it is
+  small, but it is not zero, and any encoder difference in the comparison is
+  confounded with it. The larger fact the table exposes holds for every encoder,
+  Phase 1 included: **64 tokens truncates 84% of non-empty transcripts** to
+  roughly their first 50 of a median 118 words, and 46% of titles are cut at 32
+  tokens. The lengths are the authors' and are kept.
+
 ## Metrics — averaging convention (the single most consequential choice)
 - **Macro-averaged over the real and fake classes is reported as PRIMARY**;
   fake-class-only numbers are reported alongside. The paper says only

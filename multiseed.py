@@ -8,7 +8,8 @@ import numpy as np
 import torch
 from scipy import stats
 
-from dataset import VISUAL_SPLIT_PATH, load_features, load_records, load_visual_features, make_visual_splits
+from dataset import (DEFAULT_ENCODER, VISUAL_SPLIT_PATH, feature_dir_for, load_feature_meta, load_features,
+                     load_records, load_visual_features, make_visual_splits)
 from train import BATCH_SIZE, EPOCHS, LR, VISUAL_CONFIGS, run_experiment
 from utils import get_device
 
@@ -29,7 +30,7 @@ def split_digest(splits):
     return hashlib.sha256(json.dumps(ids, sort_keys=True).encode()).hexdigest()
 
 
-def run_seed(seed, splits, features, visual, device, epochs):
+def run_seed(seed, splits, features, text_dim, visual, device, epochs):
     path = RUN_DIR / f"seed{seed}.json"
     if path.exists():
         return json.loads(path.read_text())
@@ -38,7 +39,7 @@ def run_seed(seed, splits, features, visual, device, epochs):
     with open(log, "w") as f, redirect_stdout(f):
         for modalities, d_k in VISUAL_CONFIGS:
             tag = f"{modalities}_dk{d_k}"
-            r = run_experiment(False, splits, features, device, epochs, seed,
+            r = run_experiment(False, splits, features, device, epochs, seed, text_dim=text_dim,
                                modalities=modalities, d_k=d_k, visual=visual,
                                tag=tag, label=f"{tag} seed {seed}", save_checkpoints=False)
             runs[tag] = {
@@ -124,14 +125,16 @@ def main():
     splits = make_visual_splits(records)
     digest = split_digest(splits)
     visual = load_visual_features(sorted([r for v in splits.values() for r in v], key=lambda r: r["index"]))
-    features = load_features(mmap=False)
+    feature_dir = feature_dir_for(DEFAULT_ENCODER)
+    features = load_features(feature_dir, mmap=False)
+    text_dim = load_feature_meta(feature_dir)["hidden_size"]
     print(f"frozen split {VISUAL_SPLIT_PATH} sha256 {digest[:16]} | "
           f"train {len(splits['train'])} val {len(splits['val'])} test {len(splits['test'])} | device {device}")
 
     results = []
     for seed in args.seeds:
         cached = (RUN_DIR / f"seed{seed}.json").exists()
-        rec = run_seed(seed, splits, features, visual, device, args.epochs)
+        rec = run_seed(seed, splits, features, text_dim, visual, device, args.epochs)
         if rec["split_sha256"] != digest:
             raise RuntimeError(f"seed {seed} was run on a different split")
         print(f"seed {seed}: {'loaded from cache' if cached else 'trained'}")

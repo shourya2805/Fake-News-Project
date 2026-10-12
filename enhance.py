@@ -11,7 +11,8 @@ from scipy import stats
 from sklearn.metrics import f1_score
 from torch.utils.data import DataLoader
 
-from dataset import (FMNVDDataset, VISUAL_SPLIT_PATH, load_features, load_records,
+from dataset import (DEFAULT_ENCODER, FMNVDDataset, VISUAL_SPLIT_PATH, feature_dir_for,
+                     load_feature_meta, load_features, load_records,
                      load_visual_features, make_visual_splits)
 from determinism import make_generator, seed_worker, set_seed
 from model import FMNVD
@@ -68,7 +69,7 @@ def tune_threshold(p_val, y_val):
     return float(THRESHOLDS[pick]), float(100 * scores[pick])
 
 
-def train_one(modalities, weighted, seed, splits, features, visual, device, epochs):
+def train_one(modalities, weighted, seed, splits, features, text_dim, visual, device, epochs):
     set_seed(seed)
     loaders = {}
     for name in ("train", "val", "test"):
@@ -78,7 +79,7 @@ def train_one(modalities, weighted, seed, splits, features, visual, device, epoc
                                    generator=make_generator(seed), worker_init_fn=seed_worker,
                                    drop_last=False)
 
-    model = FMNVD(modalities=modalities, d_k=D_K).to(device)
+    model = FMNVD(text_dim=text_dim, modalities=modalities, d_k=D_K).to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=LR)
     weights, counts = class_weights(splits["train"])
     criterion = nn.CrossEntropyLoss(
@@ -110,7 +111,7 @@ def train_one(modalities, weighted, seed, splits, features, visual, device, epoc
     return out
 
 
-def run_seed(seed, splits, features, visual, device, epochs):
+def run_seed(seed, splits, features, text_dim, visual, device, epochs):
     path = RUN_DIR / f"seed{seed}.json"
     if path.exists():
         return json.loads(path.read_text())
@@ -119,7 +120,7 @@ def run_seed(seed, splits, features, visual, device, epochs):
         for modalities in MODELS:
             for weighted in (False, True):
                 runs[f"{modalities}_{'weighted' if weighted else 'unweighted'}"] = train_one(
-                    modalities, weighted, seed, splits, features, visual, device, epochs)
+                    modalities, weighted, seed, splits, features, text_dim, visual, device, epochs)
     record = {"seed": seed, "split_sha256": split_digest(splits), "runs": runs}
     path.write_text(json.dumps(record, indent=2))
     return record
@@ -218,7 +219,9 @@ def main():
     splits = make_visual_splits(records)
     digest = split_digest(splits)
     visual = load_visual_features(sorted([r for v in splits.values() for r in v], key=lambda r: r["index"]))
-    features = load_features(mmap=False)
+    feature_dir = feature_dir_for(DEFAULT_ENCODER)
+    features = load_features(feature_dir, mmap=False)
+    text_dim = load_feature_meta(feature_dir)["hidden_size"]
     weights, counts = class_weights(splits["train"])
     print(f"frozen split {VISUAL_SPLIT_PATH} sha256 {digest[:16]} | train {len(splits['train'])} "
           f"val {len(splits['val'])} test {len(splits['test'])} | device {device}")
@@ -229,7 +232,7 @@ def main():
     results = []
     for seed in args.seeds:
         cached = (RUN_DIR / f"seed{seed}.json").exists()
-        rec = run_seed(seed, splits, features, visual, device, args.epochs)
+        rec = run_seed(seed, splits, features, text_dim, visual, device, args.epochs)
         if rec["split_sha256"] != digest:
             raise RuntimeError(f"seed {seed} was run on a different split")
         print(f"seed {seed}: {'loaded from cache' if cached else 'trained'}")

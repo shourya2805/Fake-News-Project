@@ -33,9 +33,10 @@ from sklearn.metrics import (accuracy_score, f1_score, precision_score,
                              recall_score)
 from torch.utils.data import DataLoader
 
-from dataset import (FAKE_CATEGORIES, FULL_SPLIT_PATH, FMNVDDataset, SEED,
-                     VISUAL_CATEGORIES, file_sha256, load_features, load_full_split,
-                     load_records, load_visual_features, make_visual_splits)
+from dataset import (DEFAULT_ENCODER, FAKE_CATEGORIES, FULL_SPLIT_PATH, FMNVDDataset,
+                     SEED, VISUAL_CATEGORIES, feature_dir_for, file_sha256, load_feature_meta,
+                     load_features, load_full_split, load_records, load_visual_features,
+                     make_visual_splits)
 from determinism import make_generator, seed_worker, set_seed
 from model import FMNVD
 from utils import get_device
@@ -164,7 +165,7 @@ def transcript_only_baseline(records):
     }
 
 
-def run_experiment(use_flag, splits, features, device, epochs, seed,
+def run_experiment(use_flag, splits, features, device, epochs, seed, *, text_dim,
                    modalities="text", d_k=None, visual=None, tag=None, label=None,
                    save_checkpoints=True):
     tag = tag or ("with_flag" if use_flag else "without_flag")
@@ -182,7 +183,8 @@ def run_experiment(use_flag, splits, features, device, epochs, seed,
             drop_last=False,
         )
 
-    model = FMNVD(use_has_transcript=use_flag, modalities=modalities, d_k=d_k).to(device)
+    model = FMNVD(text_dim=text_dim, use_has_transcript=use_flag, modalities=modalities,
+                  d_k=d_k).to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=LR)
     criterion = nn.CrossEntropyLoss()
 
@@ -354,7 +356,9 @@ def main_visual(args, device):
     splits = make_visual_splits(records)
     subset = [r for recs in splits.values() for r in recs]
     visual = load_visual_features(sorted(subset, key=lambda r: r["index"]))
-    features = load_features(mmap=False)
+    feature_dir = feature_dir_for(DEFAULT_ENCODER)
+    features = load_features(feature_dir, mmap=False)
+    text_dim = load_feature_meta(feature_dir)["hidden_size"]
     print(f"visual subset {len(subset)} | train {len(splits['train'])} "
           f"val {len(splits['val'])} test {len(splits['test'])} | seed {args.seed}")
     print(f"clip {visual['clip'].shape} {visual['clip'].dtype} | motion {visual['motion'].shape} "
@@ -366,8 +370,8 @@ def main_visual(args, device):
         tag = f"visual_{modalities}_dk{d_k}"
         label = f"{modalities.upper()} | d_k={d_k} | visual split"
         results.append(run_experiment(False, splits, features, device, args.epochs, args.seed,
-                                      modalities=modalities, d_k=d_k, visual=visual,
-                                      tag=tag, label=label))
+                                      text_dim=text_dim, modalities=modalities, d_k=d_k,
+                                      visual=visual, tag=tag, label=label))
 
     print(f"\n\n{'#' * 74}\n# FINAL RESULTS — visual split — test set\n{'#' * 74}")
     print("Acc/Maj in %. Maj = accuracy of always predicting real on that subset. "
@@ -420,15 +424,19 @@ def main():
     device = torch.device(args.device) if args.device else get_device()
     records = load_records()
     splits = load_full_split(records)
-    features = load_features(mmap=False)
+    feature_dir = feature_dir_for(DEFAULT_ENCODER)
+    features = load_features(feature_dir, mmap=False)
+    text_dim = load_feature_meta(feature_dir)["hidden_size"]
 
     print(f"records {len(records)} | train {len(splits['train'])} "
           f"val {len(splits['val'])} test {len(splits['test'])} | seed {args.seed}")
 
     d_k = args.d_k[0] if args.d_k else None
     results = [
-        run_experiment(False, splits, features, device, args.epochs, args.seed, d_k=d_k),
-        run_experiment(True, splits, features, device, args.epochs, args.seed, d_k=d_k),
+        run_experiment(False, splits, features, device, args.epochs, args.seed,
+                       text_dim=text_dim, d_k=d_k),
+        run_experiment(True, splits, features, device, args.epochs, args.seed,
+                       text_dim=text_dim, d_k=d_k),
     ]
     baseline = transcript_only_baseline(splits["test"])
 

@@ -23,7 +23,15 @@ from sklearn.model_selection import train_test_split
 from torch.utils.data import Dataset
 
 DATA_PATH = "data/data.json"
-FEATURE_DIR = "features"
+FEATURE_ROOT = Path("features")
+FEATURE_META = "meta.json"
+ENCODERS = [
+    "bert-base-uncased",
+    "roberta-base",
+    "microsoft/deberta-v3-base",
+    "sentence-transformers/all-mpnet-base-v2",
+]
+DEFAULT_ENCODER = "bert-base-uncased"
 
 LABEL_MAP = {"false": 1, "true": 0}          # "false" = fake = positive class
 CATEGORY_MAP = {                              # paper name -> code
@@ -229,7 +237,9 @@ class FMNVDDataset(Dataset):
     mask (written that way by `extract_features.py`) — never silent padding.
     """
 
-    def __init__(self, records, feature_dir=FEATURE_DIR, features=None, visual=None):
+    def __init__(self, records, feature_dir=None, features=None, visual=None):
+        if features is None and feature_dir is None:
+            raise ValueError("FMNVDDataset needs features or feature_dir")
         self.records = records
         self.features = features if features is not None else load_features(feature_dir)
         self.visual = visual
@@ -274,16 +284,33 @@ class FMNVDDataset(Dataset):
 FEATURE_FILES = ["title_emb", "title_mask", "transcript_emb", "transcript_mask"]
 
 
-def features_exist(feature_dir=FEATURE_DIR):
+def encoder_slug(encoder):
+    return encoder.replace("/", "__")
+
+
+def feature_dir_for(encoder):
+    if encoder not in ENCODERS:
+        raise ValueError(f"unknown encoder {encoder!r}; expected one of {ENCODERS}")
+    return FEATURE_ROOT / encoder_slug(encoder)
+
+
+def load_feature_meta(feature_dir):
+    path = Path(feature_dir) / FEATURE_META
+    if not path.exists():
+        raise FileNotFoundError(f"{path} missing — run: python extract_features.py --encoder ...")
+    return json.loads(path.read_text())
+
+
+def features_exist(feature_dir):
     return all(
         os.path.exists(os.path.join(feature_dir, f"{n}.npy")) for n in FEATURE_FILES
     )
 
 
-def load_features(feature_dir=FEATURE_DIR, mmap=True):
+def load_features(feature_dir, mmap=True):
     if not features_exist(feature_dir):
         raise FileNotFoundError(
-            f"cached features missing in {feature_dir}/ — run: python extract_features.py"
+            f"cached features missing in {feature_dir}/ — run: python extract_features.py --encoder ..."
         )
     return {
         n: np.load(os.path.join(feature_dir, f"{n}.npy"),

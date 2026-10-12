@@ -9,6 +9,9 @@ Dimensions are taken verbatim from the authors' `FMNVD.py`:
 d_k defaults to dim // num_heads = 32 (the Phase 1 value); pass d_k=128 for the
 authors' setting.
 
+text_dim has no default: callers pass the hidden size recorded in the feature
+cache's meta.json, so a cache from another encoder cannot be fed through silently.
+
 modalities="text" (paper's "w/o Frames" ablation):
 
     title  (B, 32, 768) --linear_title--> (B, 32, 128)
@@ -33,7 +36,6 @@ import torch.nn as nn
 
 from modules.coattention import co_attention
 
-TEXT_DIM = 768
 TITLE_LENGTH = 32
 SPEECH_TEXT_LENGTH = 64
 CLIP_DIM = 512
@@ -46,7 +48,7 @@ MODALITIES = ("text", "full")
 
 
 class FMNVD(nn.Module):
-    def __init__(self, text_dim=TEXT_DIM, dim=DIM, dropout=DROPOUT,
+    def __init__(self, text_dim, dim=DIM, dropout=DROPOUT,
                  num_heads=NUM_HEADS, title_length=TITLE_LENGTH,
                  speech_text_length=SPEECH_TEXT_LENGTH, num_classes=2,
                  use_has_transcript=False, modalities="text",

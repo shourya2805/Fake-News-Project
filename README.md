@@ -32,7 +32,7 @@ Everything runs from the repo root, in this order:
 ```bash
 python test_smoke.py          # random tensors through the model, shape check
 python dataset.py             # split sizes, label distribution, missingness table
-python extract_features.py    # frozen BERT -> features/*.npy  (~20 s on MPS)
+python extract_features.py    # frozen BERT -> features/bert-base-uncased/  (~20 s on MPS)
 python train.py               # both runs + all result tables -> results.json
 ```
 
@@ -50,11 +50,11 @@ README.md              this file
 DEVIATIONS.md          every choice the paper does not specify
 requirements.txt
 data/data.json         2393 records (gitignored)
-features/              cached BERT embeddings, .npy (gitignored, ~707 MB)
+features/<encoder>/    cached text-encoder embeddings + meta.json (gitignored, ~707 MB each)
 modules/coattention.py bidirectional multi-head co-attention, paper eq. 5-7
 model.py               FMNVD, title + audio path
 dataset.py             loading, label/category mapping, stratified splits
-extract_features.py    frozen bert-base-uncased -> features/
+extract_features.py    frozen text encoder (--encoder, default bert-base-uncased) -> features/<encoder>/
 train.py               training loop + overall/per-category evaluation
 test_smoke.py          shape smoke test
 results.json           written by train.py (tracked; the cited Phase 1 record)

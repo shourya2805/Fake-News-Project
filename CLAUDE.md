@@ -262,7 +262,9 @@ video feature extraction may run on **Google Colab**.
   `cpu`. The same code must run unchanged on a Mac and on Colab.
 - Some ops fall back to CPU under MPS; if training is unstable or errors on MPS,
   fall back to CPU.
-- BERT features are cached to `features/*.npy` and never recomputed.
+- Text-encoder features are cached per encoder to `features/<encoder-slug>/`
+  (`/` → `__`, e.g. `features/bert-base-uncased/`) with a `meta.json`, and never
+  recomputed. The Phase 1 BERT cache lives in `features/bert-base-uncased/`.
 - Video features are cached to `features/video/` and never recomputed.
 
 ### Dependencies
@@ -294,7 +296,7 @@ fmnvd/
   .gitignore                 # excludes data/, features/, videos/, features/video/
   data/
     data.json
-  features/                  # cached BERT embeddings (.npy)
+  features/<encoder-slug>/   # cached text-encoder embeddings (.npy) + meta.json
     video/                   # cached CLIP frame + motion features
   videos/                    # downloaded YouTube videos (never committed)
   modules/
@@ -304,7 +306,7 @@ fmnvd/
   determinism.py             # seeds, deterministic flags, DataLoader seeding
   model.py                   # FMNVD
   dataset.py                 # JSON loading, has_transcript flag, splits
-  extract_features.py        # BERT encode → features/
+  extract_features.py        # --encoder: frozen text encoder → features/<encoder-slug>/
   train.py                   # train loop + overall/per-category eval
   test_smoke.py              # random tensors through model, shape check
   multiseed.py               # 5-seed study on the frozen visual split → results_multiseed.json

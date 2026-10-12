@@ -3,8 +3,10 @@
 import torch
 
 from model import (CLIP_DIM, FMNVD, MOTION_DIM, NUM_FRAMES, SPEECH_TEXT_LENGTH,
-                   TEXT_DIM, TITLE_LENGTH)
+                   TITLE_LENGTH)
 from utils import get_device
+
+TEXT_DIM = 768
 
 
 def main():
@@ -31,7 +33,7 @@ def main():
 
     for modalities in ("text", "full"):
         for use_flag in (False, True):
-            model = FMNVD(use_has_transcript=use_flag, modalities=modalities).to(device).eval()
+            model = FMNVD(text_dim=TEXT_DIM, use_has_transcript=use_flag, modalities=modalities).to(device).eval()
             with torch.no_grad():
                 logits = model(title, speech, title_mask, speech_mask, has_transcript,
                                clip=clip, motion=motion)
@@ -46,7 +48,7 @@ def main():
             print(f"  parameters (trainable)   : {n_train:,}")
             print()
 
-    full = FMNVD(modalities="full").to(device).eval()
+    full = FMNVD(text_dim=TEXT_DIM, modalities="full").to(device).eval()
     with torch.no_grad():
         gated = full.gated_visual(clip, motion)
         logits = full(title, speech, title_mask, speech_mask, clip=clip, motion=motion)
