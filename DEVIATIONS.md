@@ -553,3 +553,51 @@ overwrite was namespaced. None of this changes any result.
   bit for bit. The full subset reports the best-val-F1 checkpoint only.
 - **`enhance.py` still has its own training loop** (`train_one`), a known
   duplication. It was given `--encoder` and the namespacing above, nothing else.
+
+## Enhancement: frozen text-encoder comparison (`compare_encoders.py`)
+
+Enhancement work with its own baseline; it does not touch the Phase 1
+reproduction numbers.
+
+- **Four frozen encoders × five seeds (42–46)** on the full 2,393-record dataset
+  and the frozen split `splits/full_split.json`: `bert-base-uncased` (baseline),
+  `roberta-base`, `microsoft/deberta-v3-base`,
+  `sentence-transformers/all-mpnet-base-v2`. Only the cached features change
+  between rows; the head, its hyperparameters (Adam 1e-3, batch 128, 30 epochs)
+  and the training path (`multiseed.run_study` → `train.run_experiment`) are the
+  same for every encoder.
+- **`without_flag` configuration only, d_k = 32.** This is the Phase 1 headline
+  configuration (the 77.16 / 74.34 row), so the comparison stays in the
+  reproduction lineage. The `has_transcript` input is left out because Phase 1
+  showed it lowers macro F1 and is redundant with the all-zero transcript
+  embedding.
+- **Best-validation-macro-F1 checkpoint**, the same selection rule as Phase 1.
+- **Reported:** mean ± sample SD (ddof = 1) over seeds for accuracy, macro F1, and
+  per-category F1 for CD / CE / SV / CA. Per-category F1 uses the established
+  convention: all real test samples plus only that category's fakes, scored as
+  its own binary problem with macro F1 (`train.per_category_metrics`). It is not
+  class-wise F1 on the full test set.
+- **Paired t-test of each encoder against `bert-base-uncased` only**, not all
+  pairs: 3 encoders × 6 metrics = 18 tests. Raw p-values are reported with a
+  Holm adjustment over all 18 beside them. The Wilcoxon signed-rank test is
+  stored in the JSON but cannot reach p < 0.05 with n = 5 (minimum two-sided
+  p = 0.0625). As in the multi-seed study, the test covers training randomness
+  only: every seed is scored on the same 359 test samples.
+- **One environment for every row.** The published table is produced on Colab.
+  All four caches, BERT included, are extracted fresh there; the August BERT cache
+  is not used. `compare_encoders.py` compares each cache's `meta.json`
+  (torch / transformers / tokenizers versions and device type) with the running
+  environment and refuses to write a table on any mismatch.
+  `--allow-mixed-env` exists only for local smoke tests and stamps the output
+  "not for publication".
+- **Colab uses its preinstalled CUDA torch**, plus `requirements-text.txt`
+  (transformers pinned to 5.16.1, matching the local environment). The exact
+  versions, CUDA/cuDNN, GPU name and git commit are recorded in
+  `results/encoder_comparison.json`. `CUBLAS_WORKSPACE_CONFIG=:4096:8` is set
+  before Python starts so deterministic cuBLAS is in effect from the first
+  matmul.
+- **The BERT row is not comparable to 77.16 / 74.34.** That figure came from a
+  Mac (mps) under an unrecorded torch version. Within the table, BERT is
+  re-run under exactly the same conditions as the other encoders, and that
+  re-run is the only valid baseline for it.
+- **Token budgets confound the comparison**; see "Per-encoder cache".

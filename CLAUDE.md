@@ -309,7 +309,13 @@ fmnvd/
   extract_features.py        # --encoder: frozen text encoder → features/<encoder-slug>/
   train.py                   # train loop + overall/per-category eval
   test_smoke.py              # random tensors through model, shape check
-  multiseed.py               # 5-seed study on the frozen visual split → results_multiseed.json
+  multiseed.py               # 5-seed study, --subset visual (→ results_multiseed.json) or full
+  enhance.py                 # Tier 1: class-weighted loss + val-tuned threshold → results_enhance.json
+  compare_encoders.py        # 4 frozen text encoders x 5 seeds, full split → results/encoder_comparison.*
+  colab_driver.py            # single Colab cell: clone, install, run compare_encoders, push results/
+  requirements-text.txt      # text-only dependencies for the Colab encoder comparison
+  splits/                    # frozen full_split.json and visual_split.json (tracked)
+  results/                   # enhancement results (tracked)
 
   # video pipeline (Phase 2), one job per file, in run order
   download_videos.py         # yt-dlp: video_id → videos/

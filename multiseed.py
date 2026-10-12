@@ -46,8 +46,9 @@ def configs(subset):
     return [("without_flag", {"modalities": "text", "d_k": None})]
 
 
-def run_dir(subset, encoder):
-    return RUN_ROOT / subset / encoder_slug(encoder)
+def run_dir(subset, encoder, epochs=EPOCHS):
+    name = encoder_slug(encoder) if epochs == EPOCHS else f"{encoder_slug(encoder)}_epochs{epochs}"
+    return RUN_ROOT / subset / name
 
 
 def split_digest(splits):
@@ -68,10 +69,12 @@ def load_study_inputs(subset, encoder):
 
 
 def run_seed(seed, subset, encoder, splits, features, meta, visual, device, epochs):
-    directory = run_dir(subset, encoder)
+    directory = run_dir(subset, encoder, epochs)
     path = directory / f"seed{seed}.json"
     if path.exists():
         rec = json.loads(path.read_text())
+        if rec.get("epochs", EPOCHS) != epochs:
+            raise RuntimeError(f"{path} was run for {rec.get('epochs', EPOCHS)} epochs, expected {epochs}")
         if rec.get("encoder", DEFAULT_ENCODER) != encoder:
             raise RuntimeError(f"{path} was run with encoder {rec.get('encoder')}, expected {encoder}")
         if rec.get("feature_files_sha256") not in (None, meta["files_sha256"]):
@@ -87,7 +90,7 @@ def run_seed(seed, subset, encoder, splits, features, meta, visual, device, epoc
                                tag=f"{slug}_{subset}_{key}", label=f"{slug} {subset} {key} seed {seed}",
                                save_checkpoints=False, **cfg)
             runs[key] = {k: r[k] for k in ("best_epoch", "params", "history", "test", "test_last") if k in r}
-    record = {"seed": seed, "subset": subset, "encoder": encoder,
+    record = {"seed": seed, "subset": subset, "encoder": encoder, "epochs": epochs,
               "feature_files_sha256": meta["files_sha256"], "split_sha256": split_digest(splits), "runs": runs}
     path.write_text(json.dumps(record, indent=2))
     return record
@@ -100,7 +103,7 @@ def run_study(subset, encoder, seeds, epochs, device):
           f"train {len(splits['train'])} val {len(splits['val'])} test {len(splits['test'])} | device {device}")
     records = []
     for seed in seeds:
-        cached = (run_dir(subset, encoder) / f"seed{seed}.json").exists()
+        cached = (run_dir(subset, encoder, epochs) / f"seed{seed}.json").exists()
         rec = run_seed(seed, subset, encoder, splits, features, meta, visual, device, epochs)
         if rec["split_sha256"] != digest:
             raise RuntimeError(f"seed {seed} was run on a different split")
