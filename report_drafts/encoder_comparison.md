@@ -192,34 +192,41 @@ rather than repeated.
 
 Contextual Dishonesty, where real footage is paired with a misleading title or
 claim, is the category that nothing we tried has improved by more than two
-points. At every pre-specified checkpoint, the change in CD F1 from each
-intervention stays below +2:
+points at a pre-specified checkpoint. The table below lists every CD change we
+measured: the gains, the losses, and the one larger gain that came at a
+checkpoint we excluded.
 
 | Intervention | CD F1 change | Seeds won/lost | Checkpoint |
 |---|---|---|---|
 | Visual branch (full vs text-only, d_k 32, visual split) | +0.80 | 4/1 | best validation |
-| Class-balanced loss + val-tuned threshold, text-only model | −1.13 | 0/5 | best validation |
-| Class-balanced loss + val-tuned threshold, full model | +0.79 | 4/1 | best validation |
+| Class-balanced loss + val-tuned threshold, text-only model (visual split) | −1.13 | 0/5 | best validation |
+| Class-balanced loss + val-tuned threshold, full model (visual split) | +0.79 | 4/1 | best validation |
 | DeBERTa-v3 encoder, exploratory (seeds 42–46) | +1.89 | 5/0 | best validation |
 | DeBERTa-v3 encoder, confirmatory (seeds 47–56) | +1.05 | 5 won / 5 lost | best validation |
+| RoBERTa encoder, exploratory (seeds 42–46) | −3.64 | 0/5 | best validation |
+| MPNet encoder, exploratory (seeds 42–46) | −6.30 | 0/5 | best validation |
+| Visual branch, epoch 30 (visual split) | +3.41 | 5/0 | epoch 30 — **declined**, not pre-specified |
 
-The first three rows are on the visual split (REAL+CD+CA, 227 test samples);
-the DeBERTa rows are on the full split (359 test samples). Each change is
-measured against its own study's baseline.
+Rows marked "visual split" are on the REAL+CD+CA visual split (227 test
+samples); the encoder rows are on the full split (359 test samples). Each change
+is measured against its own study's baseline.
 
-Where CD was tested (in the visual-branch, Tier 1 and exploratory encoder
-studies), no gain survived the study's own correction; the confirmatory CD
-figure is descriptive only. The point is the pattern, not any single p-value:
-no intervention moves CD by more than two points. The same encoder that improves
+Read across the seven rows at a pre-specified checkpoint, the bound is visible
+in the table: the largest CD gain is +1.89 and the largest losses are −3.64 and
+−6.30. **CD is hard to improve and easy to damage.** Where CD was tested (in the
+visual-branch, Tier 1 and exploratory encoder studies), no gain survived the
+study's own correction; the confirmatory CD figure is descriptive only. The
+point is the pattern, not any single p-value. The same encoder that improves
 macro F1 by a confirmed +2.87 and CE by +6.71 changes CD by +1.05, winning on
 exactly half the seeds.
 
-Two qualifications belong next to this claim. First, the one larger CD gain we
-observed, +3.41 for the visual branch at the epoch-30 checkpoint (5/5 seeds),
-came at a checkpoint we declined to report because it was not specified in
-advance; under our own rule it does not count. Second, CD *can* move, but only
-downward: RoBERTa costs 3.64 points and MPNet 6.30. Nothing we tried has
-improved CD by more than two points.
+Only the last row shows a gain above two points: +3.41 for the visual branch at
+epoch 30, winning on all five seeds. It is in the table so that the exclusion
+can be seen rather than taken on trust. We declined it because epoch 30 was not
+the checkpoint we had specified in advance, which is the rule we applied
+throughout (see Results, "Contribution of the visual branch").
+Under that rule it does not count, and the claim stands as stated: nothing we
+tried improved CD by more than two points at a pre-specified checkpoint.
 
 We think the reason is structural. Detecting CD means checking whether a
 title's claim matches the content it accompanies. Every model here encodes the
