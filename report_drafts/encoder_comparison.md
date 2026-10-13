@@ -1,8 +1,8 @@
 # Draft: report section on the frozen text-encoder comparison
 
-Source: `results/encoder_comparison.{json,md}` (commit 791774a). Placeholders in
-[square brackets] mark cross-references to report sections that are not in this
-repository.
+Source: `results/encoder_comparison.{json,md}` (commit 791774a). Cross-references
+use report section names, not numbers, because the report chapters are kept
+outside this repository.
 
 ---
 
@@ -37,7 +37,7 @@ Holm p = 0.007). Its largest per-category loss is on Contextual Dishonesty:
 CD F1 falls by 6.30 points (Holm p = 0.039, 0/5 seeds), the worst CD score of
 the four encoders.
 
-This contradicts a hypothesis we put forward in [Section X, Conclusion]: that
+This contradicts a hypothesis we put forward in Future work, "Stronger text encoders": that
 an encoder trained for semantic similarity would suit CD especially well, since
 CD fakes pair genuine footage with a title that misrepresents it. On this
 evidence the hypothesis is wrong. The similarity-trained encoder is the worst
@@ -74,7 +74,7 @@ would still pass (p = 0.021) with Holm applied across the three encoders'
 primary tests alone. We do not adopt that analysis, because we would be
 choosing the endpoint after seeing which one favoured DeBERTa. This is the
 same reasoning by which we declined the visual branch's epoch-30 result in
-[Section Y, visual multi-seed study]. There, the full model beat text-only by
+Results, "Contribution of the visual branch". There, the full model beat text-only by
 3.08 macro-F1 points at the epoch-30 checkpoint (p = 0.018, 5/5 seeds), but by
 only 0.50 (p = 0.616) at the best-validation checkpoint we had specified in
 advance, and we reported the pre-specified one. We apply the same rule here
@@ -82,7 +82,7 @@ even though it costs us a positive result.
 
 Instead of re-analysing these data, we pre-registered a confirmatory
 experiment on fresh seeds with macro F1 as its single primary endpoint
-(Section [Z]).
+(see "Pre-registered confirmatory test").
 
 ### RoBERTa: no overall difference, but a different category profile
 
@@ -101,10 +101,10 @@ single overall score would hide this.
   of text under each tokenizer (about 21–22.5 title words and 50–52 transcript
   words), so encoder differences are confounded with that. More importantly,
   every encoder sees truncated input: 84.1% of transcripts and 46.2% of titles
-  are cut (Section [truncation]). The ranking above is a ranking on truncated
+  are cut (see "The paper's token budgets truncate most of the input"). The ranking above is a ranking on truncated
   input. Before running the comparison we predicted that truncation would
-  flatten the differences between encoders. That prediction failed (Section
-  [truncation], outcome).
+  flatten the differences between encoders. That prediction failed (see the outcome note in the same
+  section).
 - **Not comparable to the Phase 1 figure.** The BERT row here (77.44 / 75.14,
   mean of five seeds on CUDA) cannot be compared with the cited Phase 1
   reproduction (77.16 / 74.34). That was a single seed on a Mac (mps) under a
