@@ -10,7 +10,18 @@ WORKDIR = Path("/content/Fake-News-Project")
 DATA_URL = "https://raw.githubusercontent.com/DennisIW/FMNV/main/data.json"
 AUTHOR_NAME = "Shourya Korrapati"
 AUTHOR_EMAIL = "177808621+shourya2805@users.noreply.github.com"
-RESULT_FILES = ["results/encoder_comparison.json", "results/encoder_comparison.md"]
+TASKS = {
+    "compare": {
+        "script": ["compare_encoders.py"],
+        "results": ["results/encoder_comparison.json", "results/encoder_comparison.md"],
+        "message": "Add frozen text-encoder comparison: 4 encoders x 5 seeds on Colab",
+    },
+    "confirm": {
+        "script": ["confirm_encoder.py"],
+        "results": ["results/confirmatory_deberta_vs_bert.json", "results/confirmatory_deberta_vs_bert.md"],
+        "message": "Add pre-registered DeBERTa-v3 vs BERT confirmatory test, seeds 47-51 on Colab",
+    },
+}
 CREDENTIAL_HELPER = '!f() { echo username=x-access-token; echo "password=$GH_TOKEN"; }; f'
 
 
@@ -22,6 +33,12 @@ def run(cmd, env=None, cwd=None):
 def main():
     from google.colab import userdata
     import torch
+
+    task_name = globals().get("TASK", "compare")
+    if task_name not in TASKS:
+        sys.exit(f"TASK must be one of {sorted(TASKS)}, got {task_name!r}")
+    task = TASKS[task_name]
+    print(f"task: {task_name}", flush=True)
 
     if not torch.cuda.is_available():
         sys.exit("no GPU: Runtime > Change runtime type > GPU, then rerun this cell")
@@ -53,13 +70,13 @@ def main():
     if subprocess.run(["git", "diff", "--quiet", "--", "data/data.json"]).returncode != 0:
         sys.exit("downloaded data.json differs from the copy tracked in the repo")
 
-    run([sys.executable, "compare_encoders.py"], env=env)
+    run([sys.executable, *task["script"]], env=env)
 
-    run(["git", "add", *RESULT_FILES])
-    run(["git", "commit", "-m", "Add frozen text-encoder comparison: 4 encoders x 5 seeds on Colab"])
+    run(["git", "add", *task["results"]])
+    run(["git", "commit", "-m", task["message"]])
     run(["git", "-c", "credential.helper=", "-c", f"credential.helper={CREDENTIAL_HELPER}",
          "push", "origin", "HEAD:main"], env=git_env)
-    print(Path(RESULT_FILES[1]).read_text())
+    print(Path(task["results"][1]).read_text())
 
 
 main()

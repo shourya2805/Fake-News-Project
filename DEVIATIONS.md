@@ -618,3 +618,21 @@ reproduction numbers.
   re-run under exactly the same conditions as the other encoders, and that
   re-run is the only valid baseline for it.
 - **Token budgets confound the comparison**; see "Per-encoder cache".
+
+## Confirmatory test: DeBERTa-v3 vs BERT (`confirm_encoder.py`)
+
+- **Pre-registered before any code or data:** `preregistration/deberta_vs_bert.md`
+  and `.json` (commit 2c84655). They fix the arms, seeds 47–51, the single primary
+  endpoint (test macro F1), one paired two-sided t-test at α = 0.05, and the
+  decision rule. The runner was committed afterwards.
+- **The runner reads every parameter from the committed JSON** and refuses to run
+  if the pre-registration or any frozen path (training code, `modules/`, the split
+  file) differs from the registration commit, including uncommitted edits. It
+  re-extracts any feature cache older than the registration commit, so both arms
+  are extracted fresh in the confirmatory environment.
+- **Why this exists:** DeBERTa's exploratory advantage (+3.26 macro F1, 5/5 seeds)
+  does not survive Holm over 18 tests. Re-testing it with macro F1 as the only
+  endpoint would choose that endpoint after seeing the data, the same reason
+  the epoch-30 visual result (+3.08) was not adopted.
+- **Limitation:** the test set is the same 359 samples as the exploratory study,
+  so the test covers training randomness and environment, not generalisation.
