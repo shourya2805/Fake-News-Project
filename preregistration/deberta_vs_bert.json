@@ -1,0 +1,29 @@
+{
+  "name": "deberta_vs_bert",
+  "registered": "2026-10-13",
+  "baseline": "bert-base-uncased",
+  "treatment": "microsoft/deberta-v3-base",
+  "seeds": [47, 48, 49, 50, 51],
+  "subset": "full",
+  "split_file": "splits/full_split.json",
+  "split_file_sha256": "1a4adcada317524dbe5c3498cb9a82bdbea96995cadf06b39c209c07950d5ff9",
+  "configuration": "without_flag, d_k 32",
+  "epochs": 30,
+  "checkpoint": "best validation macro F1",
+  "primary_endpoint": "per-seed difference (treatment - baseline) in overall test macro F1",
+  "primary_metric_key": "f1",
+  "test": "paired two-sided t-test",
+  "alpha": 0.05,
+  "decision_rule": {
+    "confirmed": "mean difference > 0 and p < alpha",
+    "not_confirmed": "p >= alpha",
+    "contradicted": "mean difference < 0 and p < alpha"
+  },
+  "prediction": "confirmed",
+  "expected_effect_macro_f1": [2.0, 3.0],
+  "descriptive_only": ["acc", "cd_f1", "ce_f1", "sv_f1", "ca_f1"],
+  "frozen_paths": [
+    "train.py", "model.py", "dataset.py", "multiseed.py", "extract_features.py",
+    "compare_encoders.py", "determinism.py", "utils.py", "modules", "splits/full_split.json"
+  ]
+}
