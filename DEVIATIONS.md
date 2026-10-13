@@ -65,6 +65,14 @@ the following implementation details are ours:
 - **`num_classes = 2` with cross-entropy over logits** (not a 1-logit sigmoid),
   matching the authors' `Linear(dim, 2)`.
 
+## Data file
+- **`data/data.json` is tracked in git on purpose**, re-included with
+  `!data/data.json` while the rest of `data/` stays ignored. It is the paper's own
+  public file
+  (<https://raw.githubusercontent.com/DennisIW/FMNV/main/data.json>), so
+  redistributing it is not a concern, and the tracked copy lets the Colab driver
+  check that its fresh download is byte-identical before running anything.
+
 ## Data splits (`dataset.py`)
 - **70 / 15 / 15 train / val / test, `seed = 42`.** The paper specifies no split
   ratio, seed, or protocol.
@@ -472,6 +480,11 @@ token count. REAL/CD/CA (stored >= 20 tokens) land at median 1.00, range
   framework-drift limitation: within one environment runs are bit-identical;
   across torch versions they are not. `results_torch214.json` is the reference
   for any check that has to be re-run today.
+- **The checkpoint that produced 77.16 no longer exists.** `checkpoints/` was
+  always gitignored, and the 77.16 checkpoint was replaced by torch 2.14.0
+  checkpoints: first by the 2026-10-02 rerun, and finally by the Step 1
+  split-file verification on 2026-10-12. Only its metrics survive, in the
+  committed `results.json`. No committed file was lost.
 
 ## Multi-seed study (`multiseed.py`)
 

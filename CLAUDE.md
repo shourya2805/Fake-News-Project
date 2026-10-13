@@ -340,7 +340,8 @@ change.
 - **No comments in code** written from Phase 2 onward.
 - **No shell scripts** — Python entry points only.
 - **Every script is resumable** and skips work already on disk.
-- When an existing file is changed, show the full file.
+- When an existing file is changed, print the full file when the change is under ~200 lines; for larger changes,
+  summarise what changed and rely on the commit for review.
 - After any model change, run `test_smoke.py` and confirm output is `(B, 2)`
   before touching real data.
 - Every file must run standalone from the repo root.
@@ -354,7 +355,8 @@ change.
 - When you change CLAUDE.md, DEVIATIONS.md, README.md or any other .md file,
   do NOT print the file contents. Make the edit and report it in one line:
   which file, what changed.
-- When you change a .py file, show the full file.
+- When you change a .py file, print the full file when the change is under ~200 lines; for larger changes,
+  summarise what changed and rely on the commit for review.
 - Never print a file just to confirm you wrote it.
 - Do not echo results.json, coverage.json, failed.csv or any other generated
   file. Print the summary table only.
