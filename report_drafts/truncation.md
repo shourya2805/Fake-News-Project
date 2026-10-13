@@ -55,3 +55,36 @@ The comparison holds the token budget fixed to stay faithful to the authors'
 specification. The direct test of this limitation is to repeat the comparison
 with a longer transcript budget (for example 256 tokens, which would cover the
 median transcript entirely). We have not run that test.
+
+---
+
+## Outcome, added 2026-10-13: the prediction failed
+
+The comparison ran after the prediction above was committed (prediction: commit
+b066470, replayed as 8c32373; results: commit 791774a). **Both halves of the
+prediction were wrong.**
+
+- **"Within about one seed standard deviation of each other on macro F1."**
+  Wrong by a wide margin. Macro F1 ranges from 68.87 (MPNet) to 78.41 (DeBERTa-v3),
+  a spread of 9.54 points, which is 6.8 times the baseline's seed SD of 1.40.
+  Accuracy ranges from 70.42 to 80.39, close to 10 points.
+- **"No difference surviving the Holm correction."** Wrong. MPNet is worse than
+  BERT after Holm adjustment over all 18 tests on accuracy (−7.02, p = 0.007),
+  macro F1 (−6.27, p = 0.005) and CD F1 (−6.30, p = 0.039), and loses on all 5
+  seeds for each.
+
+**What the prediction got wrong.** It assumed that, with every encoder limited
+to the same ~50 transcript words and ~21 title words, the truncation would
+dominate and flatten the differences between encoders. It did not. The
+encoders represent the same truncated fragments very differently, enough to
+move macro F1 by almost ten points. The pre-registered alternative applies:
+"the encoder matters even on truncated input".
+
+**What still stands.** The truncation itself is measured and does not change:
+84.1% of transcripts and 46.2% of titles are cut. All four encoders were
+compared at the authors' 32/64 budgets, so the ranking holds for truncated
+input only. Whether it holds when the model sees whole transcripts is untested;
+the 256-token comparison is still the direct test. The limitation should
+therefore be reworded from "the comparison may measure truncation rather than
+encoder quality" to "the comparison measures encoder quality on truncated
+input, which need not match encoder quality on full input".
