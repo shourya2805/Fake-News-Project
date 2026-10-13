@@ -72,6 +72,10 @@ the following implementation details are ours:
   (<https://raw.githubusercontent.com/DennisIW/FMNV/main/data.json>), so
   redistributing it is not a concern, and the tracked copy lets the Colab driver
   check that its fresh download is byte-identical before running anything.
+- **`data/youtube_urls.txt` and `data/twitter_urls.txt` are tracked on purpose
+  too** (`!data/youtube_urls.txt`, `!data/twitter_urls.txt`). They are the
+  download pipeline's input lists, derived from data.json's `video_id`s, and are
+  needed to re-run `download_videos.py`.
 
 ## Data splits (`dataset.py`)
 - **70 / 15 / 15 train / val / test, `seed = 42`.** The paper specifies no split

@@ -1,6 +1,8 @@
 # data + cached features are large / not ours to redistribute
 data/*
 !data/data.json
+!data/youtube_urls.txt
+!data/twitter_urls.txt
 features/
 videos/
 features/video/
