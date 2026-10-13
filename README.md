@@ -10,6 +10,16 @@ REAL+CD+CA visual subset; see DEVIATIONS.md for its design and results.
 Binary task: is a news video real (0) or fake (1). The 1500 fake samples fall into
 four manipulation categories that are scored separately: CD, CE, SV, CA.
 
+## Repositories
+
+[`shourya2805/Fake-News-Project`](https://github.com/shourya2805/Fake-News-Project)
+is the canonical repository, and its `main` branch is the one to clone and cite.
+Its `phase2-history` branch is not leftover debris: it holds the full
+commit-by-commit development record (Phase 1 through the encoder-comparison
+setup), which `main` carries only in condensed form. That history was developed
+in [`shourya2805/Fake-News-Detection`](https://github.com/shourya2805/Fake-News-Detection),
+which is kept as a read-only archive and receives no new work.
+
 ## Setup
 
 Requires Python 3.9+ (developed on 3.13) and ~1 GB of free disk for the feature
