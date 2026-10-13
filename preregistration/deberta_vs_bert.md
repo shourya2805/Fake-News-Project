@@ -1,9 +1,10 @@
 # Pre-registration: DeBERTa-v3 vs BERT, confirmatory test
 
-Registered 2026-10-13. This document is committed **before** the experiment
-that tests it is run, and before any code exists to run it. The commit that
-adds this file is the evidence that the endpoint, the test and the decision
-rule were fixed before the data existed. `deberta_vs_bert.json` in this
+Registered 2026-10-13, revised once the same day (see "Revision 1" below),
+before any confirmatory data existed. This document is committed **before** the
+experiment that tests it is run. The latest commit that modifies this file is
+the registration point, and is the evidence that the endpoint, the test and the
+decision rule were fixed before the data existed. `deberta_vs_bert.json` in this
 directory holds the same parameters in machine-readable form, and the runner
 reads them from there.
 
@@ -26,7 +27,7 @@ give higher test macro F1 than frozen `bert-base-uncased` features.
 
 - **Arms:** `bert-base-uncased` (baseline) and `microsoft/deberta-v3-base`.
   No other encoders.
-- **Seeds:** 47, 48, 49, 50, 51, run once each for both arms (paired by seed).
+- **Seeds:** 47 to 56 (ten seeds), run once each for both arms (paired by seed).
   None of these seeds has been used for any full-dataset run, by any encoder,
   in any environment.
 - **Data:** the frozen split `splits/full_split.json`, sha256
@@ -49,7 +50,7 @@ give higher test macro F1 than frozen `bert-base-uncased` features.
 
 - **Endpoint:** for each seed, test-set macro F1 (macro over real/fake, all 359
   test samples, best-validation checkpoint) of DeBERTa minus that of BERT.
-- **Test:** paired two-sided t-test on the five differences (df = 4),
+- **Test:** paired two-sided t-test on the ten differences (df = 9),
   α = 0.05. There is one test, so no multiplicity correction is applied.
 
 ## Decision rule
@@ -71,10 +72,20 @@ artefact.
 
 ## Power, stated so a null is read correctly
 
-Using the exploratory SD of the paired differences (1.61), a two-sided
-paired t-test with n = 5 at α = 0.05 has power 0.92 if the true effect is
-+3.26, 0.72 at +2.45, 0.41 at +1.63, and 0.19 at +1.00. A Not confirmed
-outcome is therefore weak evidence of no effect if the true effect is small.
+Using the exploratory SD of the paired differences (1.61), a two-sided paired
+t-test at α = 0.05 has this power:
+
+| True effect (macro F1) | n = 5 (original) | n = 10 (registered) |
+|---|---|---|
+| +3.26 (exploratory estimate) | 0.92 | 1.00 |
+| +2.45 | 0.72 | 0.99 |
+| +2.00 | 0.56 | 0.94 |
+| +1.63 | 0.41 | 0.81 |
+| +1.00 | 0.19 | 0.42 |
+
+At the expected +2 to +3, n = 10 gives power of 0.94 or higher. A Not
+confirmed outcome is still weak evidence of no effect if the true effect is
+around +1.
 We will report it as "not confirmed", not as "no difference".
 
 ## Reported descriptively only, with no tests
@@ -85,9 +96,9 @@ the outcome.
 
 ## Fixed in advance to rule out flexible analysis
 
-- Exactly five seeds. No seeds added or dropped after looking. A run that
+- Exactly ten seeds. No seeds added or dropped after looking. A run that
   crashes is rerun with the same seed; it is not replaced.
-- Exploratory seeds 42–46 are not pooled with 47–51.
+- Exploratory seeds 42–46 are not pooled with 47–56.
 - The decision is reported exactly as the rule above gives it, whichever way it
   falls.
 
@@ -99,3 +110,14 @@ outcome therefore shows that the advantage is robust to fresh training
 randomness and to a fresh extraction environment. It does **not** show that
 the advantage generalises to unseen data. That would need a test split that
 has never been scored, and the current split cannot provide one.
+
+## Revision 1 (2026-10-13): five seeds raised to ten
+
+The original registration (commit 2c84655) specified seeds 47–51. Before any
+confirmatory run, the seed count was raised to ten (47–56). At the expected
+effect of +2 to +3 macro F1, n = 5 gave power of only 0.56–0.87 (0.72 at
++2.45): roughly a one-in-four chance of a null result on a real effect. That
+was too high for the only confirmatory run, given that we are bound to report
+whatever it gives. Nothing else changed: the arms, endpoint, test, α, decision
+rule, prediction and limitations are as originally registered. No confirmatory
+seed had been run when this revision was committed.

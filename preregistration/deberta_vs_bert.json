@@ -3,7 +3,18 @@
   "registered": "2026-10-13",
   "baseline": "bert-base-uncased",
   "treatment": "microsoft/deberta-v3-base",
-  "seeds": [47, 48, 49, 50, 51],
+  "seeds": [
+    47,
+    48,
+    49,
+    50,
+    51,
+    52,
+    53,
+    54,
+    55,
+    56
+  ],
   "subset": "full",
   "split_file": "splits/full_split.json",
   "split_file_sha256": "1a4adcada317524dbe5c3498cb9a82bdbea96995cadf06b39c209c07950d5ff9",
@@ -20,10 +31,34 @@
     "contradicted": "mean difference < 0 and p < alpha"
   },
   "prediction": "confirmed",
-  "expected_effect_macro_f1": [2.0, 3.0],
-  "descriptive_only": ["acc", "cd_f1", "ce_f1", "sv_f1", "ca_f1"],
+  "expected_effect_macro_f1": [
+    2.0,
+    3.0
+  ],
+  "descriptive_only": [
+    "acc",
+    "cd_f1",
+    "ce_f1",
+    "sv_f1",
+    "ca_f1"
+  ],
   "frozen_paths": [
-    "train.py", "model.py", "dataset.py", "multiseed.py", "extract_features.py",
-    "compare_encoders.py", "determinism.py", "utils.py", "modules", "splits/full_split.json"
+    "train.py",
+    "model.py",
+    "dataset.py",
+    "multiseed.py",
+    "extract_features.py",
+    "compare_encoders.py",
+    "determinism.py",
+    "utils.py",
+    "modules",
+    "splits/full_split.json"
+  ],
+  "revisions": [
+    {
+      "date": "2026-10-13",
+      "change": "seeds 47-51 -> 47-56 (n 5 -> 10) for power; nothing else changed; no confirmatory data existed",
+      "original_commit": "2c84655"
+    }
   ]
 }
