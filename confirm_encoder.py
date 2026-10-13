@@ -21,11 +21,15 @@ def git(*args):
     return subprocess.check_output(["git", *args], text=True).strip()
 
 
-def registration_commit(prereg_path):
-    added = git("log", "--diff-filter=A", "--format=%H %cI", "--", str(prereg_path)).splitlines()
-    if not added:
+def registration_commit(prereg_path, name):
+    registered = [str(prereg_path), str(prereg_path.with_suffix(".md"))]
+    latest = git("log", "-1", "--format=%H %cI", "--", *registered)
+    if not latest:
         raise SystemExit(f"{prereg_path} is not committed; a pre-registration must be committed before it is run")
-    commit, when = added[-1].split()
+    results = [str(OUT_DIR / f"confirmatory_{name}.json"), str(OUT_DIR / f"confirmatory_{name}.md")]
+    if git("log", "--format=%H", "--", *results):
+        raise SystemExit(f"confirmatory results for {name} are already committed; the pre-registration cannot be re-run")
+    commit, when = latest.split()
     return commit, datetime.fromisoformat(when)
 
 
@@ -124,7 +128,7 @@ def main():
 
     prereg_path = Path(args.prereg)
     prereg = json.loads(prereg_path.read_text())
-    commit, registered_at = registration_commit(prereg_path)
+    commit, registered_at = registration_commit(prereg_path, prereg["name"])
     problems = check_registration(prereg, prereg_path, commit)
     print(f"registration commit {commit[:7]} at {registered_at.isoformat()} | HEAD {git('rev-parse', '--short', 'HEAD')}")
     if problems:

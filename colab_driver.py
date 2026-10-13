@@ -19,7 +19,7 @@ TASKS = {
     "confirm": {
         "script": ["confirm_encoder.py"],
         "results": ["results/confirmatory_deberta_vs_bert.json", "results/confirmatory_deberta_vs_bert.md"],
-        "message": "Add pre-registered DeBERTa-v3 vs BERT confirmatory test, seeds 47-51 on Colab",
+        "message": "Add pre-registered DeBERTa-v3 vs BERT confirmatory test, seeds 47-56 on Colab",
     },
 }
 CREDENTIAL_HELPER = '!f() { echo username=x-access-token; echo "password=$GH_TOKEN"; }; f'

@@ -622,9 +622,16 @@ reproduction numbers.
 ## Confirmatory test: DeBERTa-v3 vs BERT (`confirm_encoder.py`)
 
 - **Pre-registered before any code or data:** `preregistration/deberta_vs_bert.md`
-  and `.json` (commit 2c84655). They fix the arms, seeds 47–51, the single primary
+  and `.json`, first committed in 2c84655 with seeds 47–51, revised in 56399e3 to
+  seeds 47–56 (n = 10) before any confirmatory run. At the expected +2 to +3
+  macro F1, power rises from 0.56–0.87 to 0.94–1.00. The revision changed nothing
+  else. The pre-registration fixes the arms, the seeds, the single primary
   endpoint (test macro F1), one paired two-sided t-test at α = 0.05, and the
-  decision rule. The runner was committed afterwards.
+  decision rule.
+- **Registration point = the latest commit that touches either pre-registration
+  file** (now 56399e3). So that a post-data edit cannot quietly become a new
+  registration point, the runner also refuses to run once a confirmatory result
+  for that pre-registration has been committed.
 - **The runner reads every parameter from the committed JSON** and refuses to run
   if the pre-registration or any frozen path (training code, `modules/`, the split
   file) differs from the registration commit, including uncommitted edits. It
