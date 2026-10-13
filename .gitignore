@@ -1,5 +1,6 @@
 # data + cached features are large / not ours to redistribute
-data/
+data/*
+!data/data.json
 features/
 videos/
 features/video/

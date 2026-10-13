@@ -5,8 +5,8 @@ import subprocess
 import sys
 from pathlib import Path
 
-REPO = "https://github.com/shourya2805/Fake-News-Detection.git"
-WORKDIR = Path("/content/Fake-News-Detection")
+REPO = "https://github.com/shourya2805/Fake-News-Project.git"
+WORKDIR = Path("/content/Fake-News-Project")
 DATA_URL = "https://raw.githubusercontent.com/DennisIW/FMNV/main/data.json"
 AUTHOR_NAME = "Shourya Korrapati"
 AUTHOR_EMAIL = "177808621+shourya2805@users.noreply.github.com"
